@@ -125,6 +125,6 @@ print('Coefficients: \n', regr.coef_)
 print('Mean squared error: %.2f' % mean_squared_error(Pdc_test,Pdc_pred))
 print('Coefficient of determination: %.2f' % r2_score(Pdc_test,Pdc_pred))
 
-plt.scatter(gti30t187a_test, Pdc_test, color='red')
-plt.plot(gti30t187a_test, Pdc_pred, color='blue')
-plt.show
+# plt.scatter(gti30t187a_test, Pdc_test, color='red')
+# plt.plot(gti30t187a_test, Pdc_pred, color='blue')
+# plt.show
