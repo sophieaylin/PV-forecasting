@@ -55,9 +55,12 @@ def summary_stats(target, filenames, baseline="sp"):
                 # where RMSE_f and RMSE_p are the RMSE of the forecast model
                 # and reference baseline model, respectively. (smart persistance model)
                 rmse_p = np.sqrt(
-                    np.mean((group["Pdc_{}_actual".format(target)] - group["Pdc_{}_{}".format(target, baseline)]) ** 2)
+                    np.mean((group["Pdc_{}_actual".format(target)] - group["Pdc_{}_{}".format(target, baseline)]).values ** 2)
                 )
                 skill = 1.0 - rmse / rmse_p
+
+                """if np.isinf(skill):
+                    skill = float("NaN")"""
 
                 results.append(
                     {
@@ -67,6 +70,7 @@ def summary_stats(target, filenames, baseline="sp"):
                         "MAE": mae,
                         "MBE": mbe,
                         "RMSE": rmse,
+                        "RMSE_p": rmse_p,
                         "skill": skill,
                         "baseline": baseline,  # the baseline forecast name
                     }
@@ -114,6 +118,8 @@ def summary_table(target):
     df = df[df["dataset"] == "Test"]
 
     df.to_csv("summary_table_{}.csv".format(target), index=False, sep=";", decimal=",")
+    sumdata = pd.DataFrame()
+    sumdata = pd.DataFrame(columns=["model", "MAE", "st", "MBE", "st", "RMSE", "st", "skill", "st"])
 
     # generate table
     for model, group in df.groupby(["model"]):
@@ -121,9 +127,15 @@ def summary_table(target):
         mae_str = "MAE: {:.3f} std: {:.2f}".format(group.mean()["MAE"], group.std()["MAE"])
         mbe_str = "MBE: {:.3f} std: {:.2f}".format(group.mean()["MBE"], group.std()["MBE"])
         rmse_str = "RMSE: {:.3f} std: {:.2f}".format(group.mean()["RMSE"], group.std()["RMSE"])
-        skill_str = "skill: {:.1f} std: {:.2f}".format(group.mean()["skill"] * 100, group.std()["skill"] * 100)
+        skill_str = "skill: {:.1f} std: {:.2f}".format(group.mean(skipna=True)["skill"] * 100, group.std(skipna=True)["skill"] * 100)
         print("{:<30} && {:<16} & {:<16} & {:<20} & {:<18} \\\\".format(meta_str, mae_str, mbe_str, rmse_str, skill_str))
-       
+        newrow = {"model": model, "MAE": group.mean()["MAE"] , "st":group.std()["MAE"]
+                     , "MBE": group.mean()["MBE"], "st": group.std()["MBE"]
+                     , "RMSE": group.mean()["RMSE"], "st": group.std()["RMSE"]
+                     , "skill": group.mean(skipna=True)["skill"] * 100, "st":group.std(skipna=True)["skill"] * 100}
+        sumdata = sumdata.append(newrow, ignore_index=True)
+
+    sumdata.to_csv("summary_mean_table_{}.csv".format(target), index=False, sep=";", decimal=",")
 
 # computes and prints error metrics
 target = "BNI"
