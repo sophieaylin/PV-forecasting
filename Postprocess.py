@@ -127,7 +127,7 @@ def summary_table(target):
         mae_str = "MAE: {:.3f} std: {:.2f}".format(group.mean()["MAE"], group.std()["MAE"])
         mbe_str = "MBE: {:.3f} std: {:.2f}".format(group.mean()["MBE"], group.std()["MBE"])
         rmse_str = "RMSE: {:.3f} std: {:.2f}".format(group.mean()["RMSE"], group.std()["RMSE"])
-        skill_str = "skill: {:.1f} std: {:.2f}".format(group.mean(skipna=True)["skill"] * 100, group.std(skipna=True)["skill"] * 100)
+        skill_str = "skill: {:.2f} std: {:.2f}".format(group.mean(skipna=True)["skill"] * 100, group.std(skipna=True)["skill"] * 100)
         print("{:<30} && {:<16} & {:<16} & {:<20} & {:<18} \\\\".format(meta_str, mae_str, mbe_str, rmse_str, skill_str))
         newrow = {"model": model, "MAE": group.mean()["MAE"] , "st":group.std()["MAE"]
                      , "MBE": group.mean()["MBE"], "st": group.std()["MBE"]

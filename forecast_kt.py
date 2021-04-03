@@ -6,33 +6,15 @@ import tables
 import DataManagement
 from sklearn import linear_model, ensemble, neural_network
 from sklearn.preprocessing import StandardScaler
-from DataManagement import get_features, get_target, target_Irr_train, target_Irr_test
+from DataManagement import get_features, get_target_Irr
 
 #Capacity = 20808.66
-features = get_features() # training features
-out = get_target() # test features
-tar_Irr_train = target_Irr_train() # trainings data (kt (=B_0), clear, El)
-tar_Irr_test = target_Irr_test() # test data (actual, kt (=B_0), clear, El)
-
-features = features.dropna(axis=0, how="any")
-train_Pdc = pd.concat([features.t, features.Pdc_5min, features.Pdc_10min, features.Pdc_15min, features.Pdc_20min,
-                 features.Pdc_25min, features.Pdc_30min, features.ENI, features.El], axis=1)
-Pdc_train = features.Pdc_33 # nur für max(Pdc)
-features = features.drop(['Pdc_5min', 'Pdc_10min', 'Pdc_15min', 'Pdc_20min', 'Pdc_25min', 'Pdc_30min',
-                      'ENI', 'El', 'Pdc_33'], axis=1)
-
-out = out.dropna(axis=0, how="any")
-tar = pd.concat([out.t, out.Pdc_5min, out.Pdc_10min, out.Pdc_15min, out.Pdc_20min,
-                 out.Pdc_25min, out.Pdc_30min, out.ENI, out.El], axis=1)
-Pdc_test = out.Pdc_33
-test_features = out.drop(['Pdc_5min', 'Pdc_10min', 'Pdc_15min', 'Pdc_20min', 'Pdc_25min', 'Pdc_30min',
-                      'ENI', 'El', 'Pdc_33'], axis=1)
-
+features = get_features()
+tar = get_target_Irr()
+features.insert(features.shape[1], column="key", value = np.array(range(0,len(features))))
+tar.insert(tar.shape[1], column="key", value = np.array(range(0,len(tar))))
 
 def run_forecast(target,horizon):
-
-    train = features.drop('t', axis=1)
-    test = test_features.drop('t', axis=1)
 
     cols = [
         "{}_{}".format(target, horizon),  # actual
@@ -40,8 +22,25 @@ def run_forecast(target,horizon):
         "{}_clear_{}".format(target, horizon),  # clear-sky model
         "El_{}".format(horizon)]  # solar elevation
 
-    train = train.join(tar_Irr_train, how="inner")
-    test = test.join(tar_Irr_test, how="inner")
+    train_x = features[features["dataset"] == "Train"]
+    test_x = features[features["dataset"] == "Test"]
+    train_y = tar[tar["dataset"] == "Train"]
+    test_y = tar[tar["dataset"] == "Test"]
+
+    train_y = train_y.drop('dataset', axis=1)
+    test_y = test_y.drop('dataset', axis=1)
+
+    train = train_x.merge(train_y, on="key")
+    test = test_x.merge(test_y, on="key")
+
+    """train = train.drop(train.index[train["El"] < 15])
+    test = test.drop(test.index[test["El"] < 15])"""
+
+    train = train.dropna()
+    test = test.dropna()
+
+    """train = train.join(tar_Irr_train, how="inner")
+    test = test.join(tar_Irr_test, how="inner")"""
     feature_cols = features.filter(regex=target).columns.tolist()
 
     train = train[cols + feature_cols]
@@ -65,10 +64,10 @@ def run_forecast(target,horizon):
              ["ridge", linear_model.RidgeCV(cv=10)],
              ["lasso", linear_model.LassoCV(cv=10, max_iter=10000)]]
 
-    scaler = StandardScaler()
+    """scaler = StandardScaler()
     scaler.fit(train_X)
     train_X = scaler.transform(train_X)
-    test_X = scaler.transform(test_X)
+    test_X = scaler.transform(test_X)"""
 
     for name, model in models:
         model.fit(train_X, train_y)
@@ -89,8 +88,10 @@ def run_forecast(target,horizon):
     # smart persistence forecast
     # uses the shortest backward average as the "current" kt value
     tmp = np.squeeze(train["B_{}_kt_0".format(target)].values) * train_clear
+    #tmp[elev_train < 5] = np.nan
     train.insert(train.shape[1], "{}_sp".format(target), tmp)
     tmp = np.squeeze(test["B_{}_kt_0".format(target)].values) * test_clear
+    #tmp[elev_test <5] = np.nan
     test.insert(test.shape[1], "{}_sp".format(target), tmp)
 
     # save forecasts
@@ -112,6 +113,7 @@ def run_forecast(target,horizon):
 
 target = ["GHI", "BNI"]
 horizon = ["5min", "10min", "15min", "20min", "25min", "30min"]
+#horizon_tar = []
 
 
 for t in target:

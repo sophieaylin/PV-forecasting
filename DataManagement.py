@@ -7,9 +7,12 @@ import matplotlib.pyplot as plt
 def get_data(deep_copy = True):
     return data.copy(deep_copy)
 
-def get_features(deep_copy = True):
+def get_features (deep_copy = True):
     # data have to be stored in a pandas DataFrame
+    # for Input -> X
     # build feature Normalization
+
+    # Trainings features
 
     #GHI_kt = GHI.div(ENI.mul(np.sin(np.deg2rad(El))))
     BNI_kt = BNI_train.div(ENI_train)
@@ -27,7 +30,6 @@ def get_features(deep_copy = True):
     featuresV_BNI = pd.DataFrame()
     featuresL_GHI.insert(0, column='L_GHI_kt_0', value=B_GHI_kt)
     featuresL_BNI.insert(0, column='L_BNI_kt_0', value=B_BNI_kt)
-    Pdc_shift = pd.DataFrame()
 
     for col in range(0, window): # ,shift; zip(range(0, window), range(-1, -(window+1), -1))
         featuresB_GHI.insert(col, column='B_GHI_kt_%i' % col, value=B_GHI_kt)
@@ -55,23 +57,13 @@ def get_features(deep_copy = True):
         featuresV_GHI.insert(col, column='V_GHI_kt_%i' % col, value=V_GHI_kt)
         featuresV_BNI.insert(col, column='V_BNI_kt_%i' % col, value=V_BNI_kt)
 
-    #Pdc_norm = Pdc.div(np.max(Pdc))
-    #Pdc_norm = Pdc.div(ENI.mul(CAPACITY))
-    Pdc_norm = Pdc_train.div(ENI_train)
-    #Pdc_norm = Pdcmean_train.div(ENI_train) # distiguish between mean of Pdc and one inverter (Pdc_33), change in features as well
+    features_train = pd.concat([time_train, featuresB_GHI, featuresB_BNI, featuresV_GHI, featuresV_BNI,
+                          featuresL_GHI, featuresL_BNI], axis=1)
 
-    for col in range(0, window+1):
-        Pdc_shift.insert(col, column='Pdc_{}min'.format(delta*(col)), value=Pdc_norm)
-        Pdc_norm = Pdc_norm.shift(periods=1)
+    features_train.insert(features_train.shape[1], "dataset", "Train")
+    features_train = features_train[1:len(features_train)]
 
-    Pdc_shift = pd.concat([Pdc_shift, ENI_train, El_train], axis=1)
-
-    features = pd.concat([time_train, featuresB_GHI, featuresB_BNI, featuresV_GHI, featuresV_BNI,
-                          featuresL_GHI, featuresL_BNI, Pdc_shift, Pdc_train], axis=1)
-
-    return features.copy(deep_copy)
-
-def get_target(deep_copy = True):
+    # Test features
 
     BNI_kt = BNI_test.div(ENI_test)
 
@@ -88,7 +80,6 @@ def get_target(deep_copy = True):
     featuresV_BNI = pd.DataFrame()
     featuresL_GHI.insert(0, column='L_GHI_kt_0', value=B_GHI_kt)
     featuresL_BNI.insert(0, column='L_BNI_kt_0', value=B_BNI_kt)
-    Pdc_shift = pd.DataFrame()
 
     for col, shift in zip(range(0, window), range(-1, -(window + 1), -1)):
         featuresB_GHI.insert(col, column='B_GHI_kt_%i' % col, value=B_GHI_kt)
@@ -118,23 +109,53 @@ def get_target(deep_copy = True):
         featuresV_GHI.insert(col, column='V_GHI_kt_%i' % col, value=V_GHI_kt)
         featuresV_BNI.insert(col, column='V_BNI_kt_%i' % col, value=V_BNI_kt)
 
-    # Pdc_norm = Pdc.div(np.max(Pdc))
-    # Pdc_norm = Pdc.div(ENI.mul(CAPACITY))
-    Pdc_norm = Pdc_test.div(ENI_test)
-    # Pdc_norm = Pdcmean_test.div(ENI_test) # distinguish between mean of all inverters or one (Pdc_33)
+    features_test = pd.concat([time_test, featuresB_GHI, featuresB_BNI, featuresV_GHI, featuresV_BNI,
+                          featuresL_GHI, featuresL_BNI], axis=1)
+
+    features_test.insert(features_test.shape[1], "dataset", "Test")
+    features_test = features_test[1:len(features_test)]
+
+    features = pd.concat([features_train, features_test], axis=0)
+
+    return features.copy(deep_copy)
+
+def get_target_Pdc (deep_copy = True):
+    # for Output -> Y (Power)
+    # Train target
+
+    Pdc_shift = pd.DataFrame()
+    Pdc_norm = Pdc_train.div(ENI_train)
 
     for col in range(0, window+1):
-        Pdc_shift.insert(col, column='Pdc_{}min'.format(delta*(col)), value=Pdc_norm)
+        Pdc_shift.insert(col, column='Pdc_{}min'.format(delta * (col)), value=Pdc_norm)
         Pdc_norm = Pdc_norm.shift(periods=1)
 
-    Pdc_shift = pd.concat([Pdc_shift, ENI_test, El_test], axis=1)
+    target_train = pd.concat([time_train, Pdc_shift, ENI_train, El_train, Pdc_train], axis=1)
+    target_train.insert(target_train.shape[1], "dataset", "Train")
+    target_train.shift(periods=-1)
+    target_train = target_train[0:len(target_train) - 1]
 
-    target = pd.concat([time_test, featuresB_GHI, featuresB_BNI, featuresV_GHI, featuresV_BNI,
-                          featuresL_GHI, featuresL_BNI, Pdc_shift, Pdc_test], axis=1)
+    # Test target
+
+    Pdc_shift = pd.DataFrame()
+    Pdc_norm = Pdc_test.div(ENI_test)
+
+    for col in range(0, window + 1):
+        Pdc_shift.insert(col, column='Pdc_{}min'.format(delta * (col)), value=Pdc_norm)
+        Pdc_norm = Pdc_norm.shift(periods=1)
+
+    target_test = pd.concat([time_test, Pdc_shift, ENI_test, El_test, Pdc_test], axis=1)
+    target_test.insert(target_test.shape[1], "dataset", "Test")
+    target_test.shift(periods=-1)
+    target_test = target_test[0:len(target_test) - 1]
+
+    target = pd.concat([target_train, target_test], axis=0)
 
     return target.copy(deep_copy)
 
-def target_Irr_train(deep_copy = True):
+def get_target_Irr(deep_copy = True):
+    # for Output -> Y (Irradiance, kt)
+    # Train target
 
     global BNI_train, GHI_train, El_train, CSGHI_train, CSBNI_train, GHI_KT_train
 
@@ -143,13 +164,13 @@ def target_Irr_train(deep_copy = True):
 
     for blk in range(0, window):
         block = pd.DataFrame()
-        block.insert(0, column="GHI_{}min".format(delta*(blk+1)), value=GHI_train)
+        block.insert(0, column="GHI_{}min".format(delta * (blk + 1)), value=GHI_train)
         block.insert(1, column="BNI_{}min".format(delta * (blk + 1)), value=BNI_train)
         block.insert(2, column="GHI_clear_{}min".format(delta * (blk + 1)), value=CSGHI_train)
         block.insert(3, column="BNI_clear_{}min".format(delta * (blk + 1)), value=CSBNI_train)
         block.insert(4, column="GHI_kt_{}min".format(delta * (blk + 1)), value=GHI_KT_train)
         block.insert(5, column="BNI_kt_{}min".format(delta * (blk + 1)), value=BNI_kt_train)
-        block.insert(6, column="El_{}min".format(delta*(blk + 1)), value=El_train)
+        block.insert(6, column="El_{}min".format(delta * (blk + 1)), value=El_train)
         target_Irr_train = pd.concat([target_Irr_train, block], axis=1)
         GHI_train = GHI_train.shift(periods=1)
         BNI_train = BNI_train.shift(periods=1)
@@ -159,9 +180,11 @@ def target_Irr_train(deep_copy = True):
         BNI_kt_train = BNI_kt_train.shift(periods=1)
         El_train = El_train.shift(periods=1)
 
-    return target_Irr_train.copy(deep_copy)
+    target_Irr_train.insert(target_Irr_train.shape[1], "dataset", "Train")
+    target_Irr_train.shift(periods=-1)
+    target_Irr_train = target_Irr_train[0:len(target_Irr_train)-1]
 
-def target_Irr_test(deep_copy=True):
+    # Test target
 
     global BNI_test, GHI_test, El_test, CSGHI_test, CSBNI_test, GHI_KT_test
 
@@ -186,9 +209,15 @@ def target_Irr_test(deep_copy=True):
         BNI_kt_test = BNI_kt_test.shift(periods=1)
         El_test = El_test.shift(periods=1)
 
-    return target_Irr_test.copy(deep_copy)
+    target_Irr_test.insert(target_Irr_test.shape[1], "dataset", "Test")
+    target_Irr_test.shift(periods=-1)
+    target_Irr_test = target_Irr_test[0:len(target_Irr_test) - 1]
 
-#global Capacity
+    target = pd.concat([target_Irr_train, target_Irr_test], axis=0)
+
+    return target.copy(deep_copy)
+
+
 filename = 'Daten/PVAMM_201911-202011_PT5M_merged.csv'
 data = pd.read_csv(filename)
 data_min = data
@@ -199,15 +228,15 @@ delta = 5  # step size [min]
 
 # removing 0 Irradiation, nighttimes (El<5 degrees) and nan
 """for Irr in ['GHI', 'DHI', 'gti30t187a', 'ENI']:
-    data_min = data_min.drop(data_min.index[data_min[Irr] == 0])"""
+    data_min = data_min.drop(data_min.index[data_min[Irr] == 0])
 
 data_min = data_min.drop(data_min.index[data_min["El"] < 5])
 
-"""data_min = data_min.dropna(subset=['GHI', 'BNI', 'DHI', 'gti30t187a', 'ENI', 'El'])"""
+data_min = data_min.dropna(subset=['GHI', 'BNI', 'DHI', 'gti30t187a', 'ENI', 'El'])"""
 
 first = ["Sep", "Dec", "Mar", "Jun"]
 second = ["Oct", "Jan", "Apr", "Jul"]
-third = ["Nov", "Feb", "May", "Aug"]
+third = ["Nov", "Feb", "May", "Aug"] # 2019 und 2020
 autumn = pd.DataFrame()
 winter = pd.DataFrame()
 spring = pd.DataFrame()
