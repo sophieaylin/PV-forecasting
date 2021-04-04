@@ -56,7 +56,10 @@ def summary_stats(target, filenames, baseline="sp"):
                 rmse_p = np.sqrt(
                     np.mean((group["{}_{}".format(target, horizon)] - group["{}_{}".format(target, baseline)]).values ** 2)
                 )
-                skill = 1.0 - rmse / rmse_p
+                if rmse_p < 0.1:
+                    skill = 0
+                else:
+                    skill = 1.0 - rmse / rmse_p
 
                 results.append(
                     {
@@ -66,6 +69,7 @@ def summary_stats(target, filenames, baseline="sp"):
                         "MAE": mae,
                         "MBE": mbe,
                         "RMSE": rmse,
+                        "RMSE_p": rmse_p,
                         "skill": skill,
                         "baseline": baseline,  # the baseline forecast name
                     }

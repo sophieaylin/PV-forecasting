@@ -126,9 +126,9 @@ def get_target_Pdc (deep_copy = True):
     Pdc_shift = pd.DataFrame()
     Pdc_norm = Pdc_train.div(ENI_train)
 
-    for col in range(0, window+1):
+    for col in range(0, window + 1):
         Pdc_shift.insert(col, column='Pdc_{}min'.format(delta * (col)), value=Pdc_norm)
-        Pdc_norm = Pdc_norm.shift(periods=1)
+        Pdc_norm = Pdc_norm.shift(periods=-1)
 
     target_train = pd.concat([time_train, Pdc_shift, ENI_train, El_train, Pdc_train], axis=1)
     target_train.insert(target_train.shape[1], "dataset", "Train")
@@ -142,7 +142,7 @@ def get_target_Pdc (deep_copy = True):
 
     for col in range(0, window + 1):
         Pdc_shift.insert(col, column='Pdc_{}min'.format(delta * (col)), value=Pdc_norm)
-        Pdc_norm = Pdc_norm.shift(periods=1)
+        Pdc_norm = Pdc_norm.shift(periods=-1)
 
     target_test = pd.concat([time_test, Pdc_shift, ENI_test, El_test, Pdc_test], axis=1)
     target_test.insert(target_test.shape[1], "dataset", "Test")
@@ -157,7 +157,7 @@ def get_target_Irr(deep_copy = True):
     # for Output -> Y (Irradiance, kt)
     # Train target
 
-    global BNI_train, GHI_train, El_train, CSGHI_train, CSBNI_train, GHI_KT_train
+    global BNI_train, GHI_train, El_train, CSGHI_train, CSBNI_train, GHI_KT_train, ENI_train
 
     target_Irr_train = pd.DataFrame()
     BNI_kt_train = BNI_train.div(ENI_train)
@@ -171,14 +171,16 @@ def get_target_Irr(deep_copy = True):
         block.insert(4, column="GHI_kt_{}min".format(delta * (blk + 1)), value=GHI_KT_train)
         block.insert(5, column="BNI_kt_{}min".format(delta * (blk + 1)), value=BNI_kt_train)
         block.insert(6, column="El_{}min".format(delta * (blk + 1)), value=El_train)
+        block.insert(7, column="ENI_{}min".format(delta * (blk + 1)), value=ENI_train)
         target_Irr_train = pd.concat([target_Irr_train, block], axis=1)
-        GHI_train = GHI_train.shift(periods=1)
-        BNI_train = BNI_train.shift(periods=1)
-        CSGHI_train = CSGHI_train.shift(periods=1)
-        CSBNI_train = CSBNI_train.shift(periods=1)
-        GHI_KT_train = GHI_KT_train.shift(periods=1)
-        BNI_kt_train = BNI_kt_train.shift(periods=1)
-        El_train = El_train.shift(periods=1)
+        GHI_train = GHI_train.shift(periods=-1)
+        BNI_train = BNI_train.shift(periods=-1)
+        CSGHI_train = CSGHI_train.shift(periods=-1)
+        CSBNI_train = CSBNI_train.shift(periods=-1)
+        GHI_KT_train = GHI_KT_train.shift(periods=-1)
+        BNI_kt_train = BNI_kt_train.shift(periods=-1)
+        El_train = El_train.shift(periods=-1)
+        ENI_train = ENI_train.shift(periods=-1)
 
     target_Irr_train.insert(target_Irr_train.shape[1], "dataset", "Train")
     target_Irr_train.shift(periods=-1)
@@ -186,7 +188,7 @@ def get_target_Irr(deep_copy = True):
 
     # Test target
 
-    global BNI_test, GHI_test, El_test, CSGHI_test, CSBNI_test, GHI_KT_test
+    global BNI_test, GHI_test, El_test, CSGHI_test, CSBNI_test, GHI_KT_test, ENI_test
 
     target_Irr_test = pd.DataFrame()
     BNI_kt_test = BNI_test.div(ENI_test)
@@ -200,14 +202,16 @@ def get_target_Irr(deep_copy = True):
         block.insert(4, column="GHI_kt_{}min".format(delta * (blk + 1)), value=GHI_KT_test)
         block.insert(5, column="BNI_kt_{}min".format(delta * (blk + 1)), value=BNI_kt_test)
         block.insert(6, column="El_{}min".format(delta * (blk + 1)), value=El_test)
+        block.insert(7, column="ENI_{}min".format(delta * (blk + 1)), value=ENI_test)
         target_Irr_test = pd.concat([target_Irr_test, block], axis=1)
-        GHI_test = GHI_test.shift(periods=1)
-        BNI_test = BNI_test.shift(periods=1)
-        CSGHI_test = CSGHI_test.shift(periods=1)
-        CSBNI_test = CSBNI_test.shift(periods=1)
-        GHI_KT_test = GHI_KT_test.shift(periods=1)
-        BNI_kt_test = BNI_kt_test.shift(periods=1)
-        El_test = El_test.shift(periods=1)
+        GHI_test = GHI_test.shift(periods=-1)
+        BNI_test = BNI_test.shift(periods=-1)
+        CSGHI_test = CSGHI_test.shift(periods=-1)
+        CSBNI_test = CSBNI_test.shift(periods=-1)
+        GHI_KT_test = GHI_KT_test.shift(periods=-1)
+        BNI_kt_test = BNI_kt_test.shift(periods=-1)
+        El_test = El_test.shift(periods=-1)
+        ENI_test = ENI_test.shift(periods=-1)
 
     target_Irr_test.insert(target_Irr_test.shape[1], "dataset", "Test")
     target_Irr_test.shift(periods=-1)

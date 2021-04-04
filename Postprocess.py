@@ -57,6 +57,7 @@ def summary_stats(target, filenames, baseline="sp"):
                 rmse_p = np.sqrt(
                     np.mean((group["Pdc_{}_actual".format(target)] - group["Pdc_{}_{}".format(target, baseline)]).values ** 2)
                 )
+
                 skill = 1.0 - rmse / rmse_p
 
                 """if np.isinf(skill):

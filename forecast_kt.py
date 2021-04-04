@@ -20,7 +20,8 @@ def run_forecast(target,horizon):
         "{}_{}".format(target, horizon),  # actual
         "{}_kt_{}".format(target, horizon),  # clear-sky index
         "{}_clear_{}".format(target, horizon),  # clear-sky model
-        "El_{}".format(horizon)]  # solar elevation
+        "El_{}".format(horizon), # solar elevation
+        "ENI_{}".format(horizon)] # extraterrestrial Irradiation
 
     train_x = features[features["dataset"] == "Train"]
     test_x = features[features["dataset"] == "Test"]
@@ -33,18 +34,13 @@ def run_forecast(target,horizon):
     train = train_x.merge(train_y, on="key")
     test = test_x.merge(test_y, on="key")
 
-    """train = train.drop(train.index[train["El"] < 15])
-    test = test.drop(test.index[test["El"] < 15])"""
+    """train = train.drop(train.index[train["El_{}".format(horizon)] < 5])
+    test = test.drop(test.index[test["El_{}".format(horizon)] < 5])"""
 
-    train = train.dropna()
-    test = test.dropna()
-
-    """train = train.join(tar_Irr_train, how="inner")
-    test = test.join(tar_Irr_test, how="inner")"""
     feature_cols = features.filter(regex=target).columns.tolist()
 
-    train = train[cols + feature_cols]
-    test = test[cols + feature_cols]
+    train = train[cols + feature_cols].dropna(how="any")
+    test = test[cols + feature_cols].dropna(how="any")
 
     train_X = train[feature_cols].values
     test_X = test[feature_cols].values
@@ -56,6 +52,9 @@ def run_forecast(target,horizon):
     train_clear = train["{}_clear_{}".format(target,horizon)].values
     test_clear = test["{}_clear_{}".format(target,horizon)].values
 
+    train_ENI = train["ENI_{}".format(horizon)].values
+    test_ENI = test["ENI_{}".format(horizon)].values
+
     # Ordinary Least-Squares (OLS)
     # Ridge Regression (OLS + L2-regularizer)
     # Lasso (OLS, L1-regularizer)
@@ -64,10 +63,10 @@ def run_forecast(target,horizon):
              ["ridge", linear_model.RidgeCV(cv=10)],
              ["lasso", linear_model.LassoCV(cv=10, max_iter=10000)]]
 
-    """scaler = StandardScaler()
+    scaler = StandardScaler()
     scaler.fit(train_X)
     train_X = scaler.transform(train_X)
-    test_X = scaler.transform(test_X)"""
+    test_X = scaler.transform(test_X)
 
     for name, model in models:
         model.fit(train_X, train_y)
@@ -75,8 +74,15 @@ def run_forecast(target,horizon):
         test_pred = model.predict(test_X)
 
         # convert from kt back to irradiance
-        train_pred *= train_clear
-        test_pred *= test_clear
+        """train_pred *= train_clear
+        test_pred *= test_clear"""
+
+        if target == "BNI":
+            train_pred *= train_ENI
+            test_pred *= test_ENI
+        else:
+            train_pred *= train_ENI * np.sin(np.deg2rad(elev_train))
+            test_pred *= test_ENI * np.sin(np.deg2rad(elev_test))
 
         # removes nighttime values (solar elevation < 5)
         train_pred[elev_train < 5] = np.nan
@@ -87,12 +93,20 @@ def run_forecast(target,horizon):
 
     # smart persistence forecast
     # uses the shortest backward average as the "current" kt value
-    tmp = np.squeeze(train["B_{}_kt_0".format(target)].values) * train_clear
-    #tmp[elev_train < 5] = np.nan
-    train.insert(train.shape[1], "{}_sp".format(target), tmp)
-    tmp = np.squeeze(test["B_{}_kt_0".format(target)].values) * test_clear
-    #tmp[elev_test <5] = np.nan
-    test.insert(test.shape[1], "{}_sp".format(target), tmp)
+    if target == "BNI":
+        tmp = np.squeeze(train["B_{}_kt_0".format(target)].values) * train_ENI # train_clear
+        #tmp[elev_train < 5] = np.nan
+        train.insert(train.shape[1], "{}_sp".format(target), tmp)
+        tmp = np.squeeze(test["B_{}_kt_0".format(target)].values) * test_ENI # test_clear
+        #tmp[elev_test <5] = np.nan
+        test.insert(test.shape[1], "{}_sp".format(target), tmp)
+    else:
+        tmp = np.squeeze(train["B_{}_kt_0".format(target)].values) * train_ENI * np.sin(np.deg2rad(elev_train))  # train_clear
+        # tmp[elev_train < 5] = np.nan
+        train.insert(train.shape[1], "{}_sp".format(target), tmp)
+        tmp = np.squeeze(test["B_{}_kt_0".format(target)].values) * test_ENI * np.sin(np.deg2rad(elev_test))  # test_clear
+        # tmp[elev_test <5] = np.nan
+        test.insert(test.shape[1], "{}_sp".format(target), tmp)
 
     # save forecasts
     # only keep essential forecast columns
