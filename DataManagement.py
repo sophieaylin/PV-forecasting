@@ -9,18 +9,19 @@ def get_data(deep_copy = True):
 
 def get_features (deep_copy = True):
     # data have to be stored in a pandas DataFrame
-    # for Input -> X
+    # for Input -> X (B = backward Average, L = lagged Average, V = Variability)
     # build feature Normalization
 
     # Trainings features
 
     #GHI_kt = GHI.div(ENI.mul(np.sin(np.deg2rad(El))))
+    #gti_kt = gti30t187a_train.div(ENI_train)
     BNI_kt = BNI_train.div(ENI_train)
 
     B_BNI_kt_1 = BNI_kt
     B_BNI_kt = BNI_kt
-    B_GHI_kt_1 = GHI_KT_train
-    B_GHI_kt = GHI_KT_train
+    B_GHI_kt_1 = GHI_KT_train #  gti_kt
+    B_GHI_kt = GHI_KT_train  #  gti_kt
 
     featuresB_GHI = pd.DataFrame()
     featuresB_BNI = pd.DataFrame()
@@ -31,7 +32,7 @@ def get_features (deep_copy = True):
     featuresL_GHI.insert(0, column='L_GHI_kt_0', value=B_GHI_kt)
     featuresL_BNI.insert(0, column='L_BNI_kt_0', value=B_BNI_kt)
 
-    for col in range(0, window): # ,shift; zip(range(0, window), range(-1, -(window+1), -1))
+    for col in range(0, window_ft): # ,shift; zip(range(0, window), range(-1, -(window+1), -1))
         featuresB_GHI.insert(col, column='B_GHI_kt_%i' % col, value=B_GHI_kt)
         featuresB_BNI.insert(col, column='B_BNI_kt_%i' % col, value=B_BNI_kt)
         BGHI_shift = B_GHI_kt_1.shift(periods=col+1)
@@ -47,7 +48,7 @@ def get_features (deep_copy = True):
     GHI_kt_mean = featuresB_GHI["B_GHI_kt_5"].to_frame()
     BNI_kt_mean = featuresB_BNI["B_BNI_kt_5"].to_frame()
 
-    for col in range(0, window):
+    for col in range(0, window_ft):
         delta_kt_GHI = featuresL_GHI.iloc[:, 0:col+1].sub(GHI_kt_mean.values.reshape(len(GHI_kt_mean), col+1)).pow(2)
         delta_kt_BNI = featuresL_BNI.iloc[:, 0:col+1].sub(BNI_kt_mean.values.reshape(len(BNI_kt_mean), col+1)).pow(2)
         GHI_kt_mean.insert(col+1, column="times_%i" % col, value=GHI_kt_mean.B_GHI_kt_5.values)
@@ -58,19 +59,20 @@ def get_features (deep_copy = True):
         featuresV_BNI.insert(col, column='V_BNI_kt_%i' % col, value=V_BNI_kt)
 
     features_train = pd.concat([time_train, featuresB_GHI, featuresB_BNI, featuresV_GHI, featuresV_BNI,
-                          featuresL_GHI, featuresL_BNI], axis=1)
+                          featuresL_GHI, featuresL_BNI, Ta_train, TL_train, vw_train, AMa_train], axis=1)
 
     features_train.insert(features_train.shape[1], "dataset", "Train")
     features_train = features_train[1:len(features_train)]
 
     # Test features
 
+    #gti_kt = gti30t187a_test.div(ENI_test)
     BNI_kt = BNI_test.div(ENI_test)
 
     B_BNI_kt_1 = BNI_kt
     B_BNI_kt = BNI_kt
-    B_GHI_kt_1 = GHI_KT_test
-    B_GHI_kt = GHI_KT_test
+    B_GHI_kt_1 = GHI_KT_test  # gti_kt
+    B_GHI_kt = GHI_KT_test  # gti_kt
 
     featuresB_GHI = pd.DataFrame()
     featuresB_BNI = pd.DataFrame()
@@ -81,7 +83,7 @@ def get_features (deep_copy = True):
     featuresL_GHI.insert(0, column='L_GHI_kt_0', value=B_GHI_kt)
     featuresL_BNI.insert(0, column='L_BNI_kt_0', value=B_BNI_kt)
 
-    for col, shift in zip(range(0, window), range(-1, -(window + 1), -1)):
+    for col, shift in zip(range(0, window_ft), range(-1, -(window_ft + 1), -1)):
         featuresB_GHI.insert(col, column='B_GHI_kt_%i' % col, value=B_GHI_kt)
         featuresB_BNI.insert(col, column='B_BNI_kt_%i' % col, value=B_BNI_kt)
         BGHI_shift = B_GHI_kt_1.shift(periods=col + 1)
@@ -97,7 +99,7 @@ def get_features (deep_copy = True):
     GHI_kt_mean = featuresB_GHI["B_GHI_kt_5"].to_frame()
     BNI_kt_mean = featuresB_BNI["B_BNI_kt_5"].to_frame()
 
-    for col in range(0, window):
+    for col in range(0, window_ft):
         delta_kt_GHI = featuresL_GHI.iloc[:, 0:col + 1].sub(GHI_kt_mean.values.reshape(len(GHI_kt_mean), col + 1)).pow(
             2)
         delta_kt_BNI = featuresL_BNI.iloc[:, 0:col + 1].sub(BNI_kt_mean.values.reshape(len(BNI_kt_mean), col + 1)).pow(
@@ -110,7 +112,7 @@ def get_features (deep_copy = True):
         featuresV_BNI.insert(col, column='V_BNI_kt_%i' % col, value=V_BNI_kt)
 
     features_test = pd.concat([time_test, featuresB_GHI, featuresB_BNI, featuresV_GHI, featuresV_BNI,
-                          featuresL_GHI, featuresL_BNI], axis=1)
+                          featuresL_GHI, featuresL_BNI, Ta_test, TL_test, vw_test, AMa_test], axis=1)
 
     features_test.insert(features_test.shape[1], "dataset", "Test")
     features_test = features_test[1:len(features_test)]
@@ -126,7 +128,7 @@ def get_target_Pdc (deep_copy = True):
     Pdc_shift = pd.DataFrame()
     Pdc_norm = Pdc_train.div(ENI_train)
 
-    for col in range(0, window + 1):
+    for col in range(0, window_tar + 1):
         Pdc_shift.insert(col, column='Pdc_{}min'.format(delta * (col)), value=Pdc_norm)
         Pdc_norm = Pdc_norm.shift(periods=-1)
 
@@ -140,7 +142,7 @@ def get_target_Pdc (deep_copy = True):
     Pdc_shift = pd.DataFrame()
     Pdc_norm = Pdc_test.div(ENI_test)
 
-    for col in range(0, window + 1):
+    for col in range(0, window_tar + 1):
         Pdc_shift.insert(col, column='Pdc_{}min'.format(delta * (col)), value=Pdc_norm)
         Pdc_norm = Pdc_norm.shift(periods=-1)
 
@@ -162,7 +164,7 @@ def get_target_Irr(deep_copy = True):
     target_Irr_train = pd.DataFrame()
     BNI_kt_train = BNI_train.div(ENI_train)
 
-    for blk in range(0, window):
+    for blk in range(0, window_tar):
         block = pd.DataFrame()
         block.insert(0, column="GHI_{}min".format(delta * (blk + 1)), value=GHI_train)
         block.insert(1, column="BNI_{}min".format(delta * (blk + 1)), value=BNI_train)
@@ -193,7 +195,7 @@ def get_target_Irr(deep_copy = True):
     target_Irr_test = pd.DataFrame()
     BNI_kt_test = BNI_test.div(ENI_test)
 
-    for blk in range(0, window):
+    for blk in range(0, window_tar):
         block = pd.DataFrame()
         block.insert(0, column="GHI_{}min".format(delta * (blk + 1)), value=GHI_test)
         block.insert(1, column="BNI_{}min".format(delta * (blk + 1)), value=BNI_test)
@@ -227,16 +229,19 @@ data = pd.read_csv(filename)
 data_min = data
 
 CAPACITY = 20808.66
-window = 6  # window size * delta[min] = forecasting period
+window_ft = 20 # time window for feature generation (without nan; measurements from 06:40 - 15:40 == window of 108)
+window_tar = 36 # time window for forecast horizon
 delta = 5  # step size [min]
 
-# removing 0 Irradiation, nighttimes (El<5 degrees) and nan
+# removing 0 Irradiation, night times (El<5 degrees) and nan
 """for Irr in ['GHI', 'DHI', 'gti30t187a', 'ENI']:
     data_min = data_min.drop(data_min.index[data_min[Irr] == 0])
 
 data_min = data_min.drop(data_min.index[data_min["El"] < 5])
 
 data_min = data_min.dropna(subset=['GHI', 'BNI', 'DHI', 'gti30t187a', 'ENI', 'El'])"""
+
+# Trainingsset: "big" year, "small" year / chronologically
 
 first = ["Sep", "Dec", "Mar", "Jun"]
 second = ["Oct", "Jan", "Apr", "Jul"]
@@ -256,16 +261,18 @@ for t in [first, second, third]:
      spring = pd.concat([spring, spr], axis=0)
      summer = pd.concat([summer, sum], axis=0)
 
-train = pd.concat([autumn[0:int(len(autumn) * 0.8)], winter[0:int(len(winter) * 0.8)],
+"""train = pd.concat([autumn[0:int(len(autumn) * 0.8)], winter[0:int(len(winter) * 0.8)],
                    spring[0:int(len(spring) * 0.8)], summer[0:int(len(summer) * 0.8)]], axis=0)
 
 test = pd.concat([autumn[int(len(autumn) * 0.8):len(autumn)], winter[int(len(winter) * 0.8):len(winter)],
-                  spring[int(len(spring) * 0.8):len(spring)], summer[int(len(summer) * 0.8):len(summer)]], axis=0)
+                  spring[int(len(spring) * 0.8):len(spring)], summer[int(len(summer) * 0.8):len(summer)]], axis=0)"""
 
-"""train, test = data_min[0:round(len(data_min)*0.8)], data_min[round(len(data_min)*0.8):len(data_min)]"""
+train, test = data_min[0:round(len(data_min)*0.8)], data_min[round(len(data_min)*0.8):len(data_min)]
 
+# time dependent Variables
 time_train, time_test = train.t, test.t
 GHI_train, GHI_test = train.GHI, test.GHI
+gti30t187a_train, gti30t187a_test = train.gti30t187a, test.gti30t187a
 CSGHI_train, CSGHI_test = train.CSGHI, test.CSGHI
 BNI_train, BNI_test = train.BNI, test.BNI
 CSBNI_train, CSBNI_test = train.CSBNI, test.CSBNI
@@ -276,3 +283,9 @@ Pdcmean_train, Pdcmean_test = train.iloc[:, 109:].mean(axis=1), test.iloc[:, 109
 Pdcmean_train = pd.Series(Pdcmean_train, name="Pdcmean")
 Pdcmean_test = pd.Series(Pdcmean_test, name="Pdcmean")
 GHI_KT_train, GHI_KT_test = train.kt, test.kt
+
+# time independent Variables (almost constant)
+TL_train, TL_test = train.TL, test.TL
+Ta_train, Ta_test = train.Ta, test.Ta
+vw_train, vw_test = train.vw, test.vw
+AMa_train, AMa_test = train.AMa, test.AMa

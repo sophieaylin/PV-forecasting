@@ -28,6 +28,7 @@ def run_forecast(target,horizon):
     train = train_x.merge(train_y, on="key")
     test = test_x.merge(test_y, on="key")
 
+    # delete night time values
     train = train.drop(train.index[train["El"] < 15])
     test = test.drop(test.index[test["El"] < 15])
 
@@ -41,12 +42,14 @@ def run_forecast(target,horizon):
     Pdc_35_test = Pdc_35_test[14:]
     train = train[0:(len(train)-14)]
     test = test[0:(len(test)-14)]
-    """train_y = train_y[0:(len(train_y)-14)]
-    test_y = test_y[0:(len(test_y)-14)]"""
     train.insert(len(train.columns), column="Pdc_35", value=Pdc_35_train.values)
     test.insert(len(test.columns), column="Pdc_35", value=Pdc_35_test.values)
 
-    feature_cols = features.filter(regex=target).columns.tolist()
+    """feature_cols = features.filter(regex=target).columns.tolist()"""
+
+    feature_cols_G = features.filter(regex="GHI").columns.tolist()
+    feature_cols_B = features.filter(regex="BNI").columns.tolist()
+    feature_cols = feature_cols_G + feature_cols_B
 
     train_X = train[feature_cols + ["Pdc_35"]].values #
     test_X = test[feature_cols + ["Pdc_35"]].values #
@@ -72,12 +75,14 @@ def run_forecast(target,horizon):
         train_pred = model.predict(train_X)
         test_pred = model.predict(test_X)
 
+        # Denormalization of prediction
         train_pred = train_pred * train.ENI #* Capacity
         test_pred = test_pred * test.ENI #* Capacity
 
         train.insert(train.shape[1], "Pdc_{}_{}".format(target,name), train_pred)
         test.insert(test.shape[1], "Pdc_{}_{}".format(target,name), test_pred)
 
+    # Denormalization of target
     train_Y = train_Y * train.ENI # * Capacity
     test_Y = test_Y * test.ENI # * Capacity
 
