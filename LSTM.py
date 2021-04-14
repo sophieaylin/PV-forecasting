@@ -4,6 +4,7 @@ import math
 import torch.nn as nn
 import pandas as pd
 import matplotlib.pyplot as plt
+import LSTMModel
 from sklearn.preprocessing import StandardScaler
 from torch.autograd import Variable
 from DataManagement import get_data, get_features, get_target_Pdc
@@ -93,107 +94,120 @@ X_test = torch.from_numpy(test_X).float()
 y_train = torch.from_numpy(train_Y).float()
 y_test = torch.from_numpy(test_Y).float()
 ENI_train = torch.from_numpy(train.ENI.values).float()
+ENI_test = torch.from_numpy(test.ENI.values).float()
 
-# Neural Network
+def initializeNewModel():
+    # Parameter übergabe
 
-class LSTM(torch.nn.Module):
-    def __init__(self, input_dim, hidden_dim, layer_dim, output_dim):
-        super(LSTM, self).__init__()
-        # Hidden dimensions
-        self.hidden_dim = hidden_dim
-        # Number of hidden layers
-        self.layer_dim = layer_dim
-        # batch_first=True causes input/output tensors to be of shape
-        # (batch_dim, seq_dim, feature_dim)
-        self.lstm = nn.LSTM(input_dim, hidden_dim, layer_dim, batch_first=True)
-        # Readout layer
-        self.fc = nn.Linear(hidden_dim, output_dim)
+    # Initializing LSTM
+    input_dim = X_train.shape[1]
+    hidden_dim = 100
+    layer_dim = 1
+    output_dim = 10
 
-        self.criterion = torch.nn.MSELoss()
+    model = LSTMModel.LSTM(input_dim, hidden_dim, layer_dim, output_dim)
 
-    def forward(self, x):
-        # Initialize hidden state with zeros
-        h_0 = torch.zeros(self.layer_dim, x.size(0), self.hidden_dim).requires_grad_()
-        # Initialize cell state
-        c_0 = torch.zeros(self.layer_dim, x.size(0), self.hidden_dim).requires_grad_()
+    return model
 
+def trainModel(model):
 
-        # e.g. 28 time steps
-        # We need to detach as we are doing truncated backpropagation through time (BPTT)
-        # If we don't, we'll backprop all the way to the start even after going through another batch
-        out, (h_n, c_n) = self.lstm(x, (h_0.detach(), c_0.detach()))
+    optimizer = torch.optim.SGD(model.parameters(), lr=1e-4)
 
-        # Index hidden state of last time step
-        # out.size() --> 100, 28, 100
-        # out[:, -1, :] --> 100, 100 --> just want last time step hidden states!
-        out = self.fc(out[:, -1, :])
-        # out.size() --> 100, 10
-        return out
+    # adjust length to packet size
+    batch_size = 200
+    seq_dim = 1
+    epochs = 500
+    iter = 0
 
-    def loss(self, x, y):
-        loss = torch.sqrt(self.criterion(x, y))
-        return loss
+    train_loss = []
+    test_loss = []
 
-# Initializing LSTM
-input_dim = X_train.shape[1]
-hidden_dim = 100
-layer_dim = 1
-output_dim = 10
+    results = pd.DataFrame()
 
-model = LSTM(input_dim, hidden_dim, layer_dim, output_dim)
-#criterion = nn.MSELoss()
-optimizer = torch.optim.SGD(model.parameters(), lr=1e-3)
+    for epoch in range(epochs):
+        for step in range(0, int(len(X_train)/batch_size -1)):
 
-# adjust length to packet size
-batch_size = 200
-seq_dim = 1
-"""paket_size = math.floor((len(X_train) / batch_size))
-new_len = paket_size * batch_size
-X_train = X_train[0:new_len]"""
-n_iters = 3000
-"""num_epochs = n_iters / (len(X_train) / batch_size)
-num_epochs = int(num_epochs)"""
-epochs = 500
-iter = 0
+            train_load = Variable(X_train[step * batch_size:(step+1) * batch_size, :]).view(-1, seq_dim, X_train.shape[1])
+            y = Variable(y_train[step * batch_size:(step+1) * batch_size])
 
-train_loss = []
-test_loss = []
-# train_load = X_train.reshape(paket_size, mini_batch_size, X_train.shape[1])
-for epoch in range(epochs):
-    for step in range(0, int(len(X_train)/batch_size -1)):
+            optimizer.zero_grad()  # clears old gradients (w, r, t)
 
-        train_load = Variable(X_train[step * batch_size:(step+1) * batch_size, :]).view(-1, seq_dim, X_train.shape[1])
-        y = Variable(y_train[step * batch_size:(step+1) * batch_size])
+            y_pred = model(train_load)
 
-        optimizer.zero_grad()  # clears old gradients (w, r, t)
+            # Denormalize
+            train_ENI = Variable(ENI_train[step * batch_size:(step + 1) * batch_size])
+            train_pred = torch.zeros(size=(y_pred.shape))
+            observ = torch.zeros(size=(y_pred.shape))
 
-        y_pred = model(train_load)
+            for i in range(0, batch_size):
+                train_pred[i] = y_pred[i, :] * train_ENI[i]
+                observ[i] = y[i, :] * ENI_train[i]
 
-        # Denormalize
-        train_ENI = Variable(ENI_train[step * batch_size:(step + 1) * batch_size])
-        train_pred = torch.zeros(size=(y_pred.shape))
-        observ = torch.zeros(size=(y_pred.shape))
+            # compute loss: criterion RMSE
+            RMSE = model.loss(train_pred, observ)
 
-        for i in range(0, batch_size):
-            train_pred[i] = y_pred[i, :] * train_ENI[i]
-            observ[i] = y[i, :] * ENI_train[i]
+            train_loss.append(RMSE.data)
+            test_batch_rmse = list()
+            P_pred = list()
+            P_observ = list()
 
-        # compute loss: criterion MSE
-        #loss = criterion(train_pred, observ) # error werte unendlich
-        loss = model.loss(train_pred, observ)
+            if iter % 10 == 9:
+                 for step in range(0, int(len(X_test)/batch_size - 1)):
 
-        train_loss.append(loss.data)
+                    test_load = Variable(X_test[step * batch_size:(step + 1) * batch_size, :]).view(-1, seq_dim, X_test.shape[1])
+                    y = Variable(y_test[step * batch_size:(step + 1) * batch_size])
 
-        if iter % 10 == 9:
-            print('Iteration: {}, Loss: {}'.format(iter, loss.data))
+                    y_pred = model(test_load)
 
-        loss.backward()  # computes derivative of loss
-        optimizer.step()  # next step based on gradient
-        iter += 1
+                    # Denormalize
+                    test_ENI = Variable(ENI_test[step * batch_size:(step + 1) * batch_size])
+                    test_pred = torch.zeros(size=(y_pred.shape))
+                    observ = torch.zeros(size=(y_pred.shape))
 
-print('loss: ', loss.item())
+                    for i in range(0, batch_size):
+                        test_pred[i] = y_pred[i, :] * test_ENI[i]
+                        observ[i] = y[i, :] * ENI_test[i]
 
+                    P_observ.append(observ.values, axis=1)
+                    P_pred.append(test_pred.values, axis=1)
 
+                    # compute Metrics
+                    error = observ.data.numpy() - test_pred.data.numpy().squeeze()
+                    mae = np.nanmean(np.abs(error))
+                    mbe = np.nanmean(error)
+                    rmse = np.sqrt(np.nanmean(error ** 2))
 
+                    test_batch_rmse.append(np.sqrt(np.mean([error ** 2], axis=1)))
+                    test_loss.append(np.mean([test_batch_rmse], axis=1))
+
+                    print('Epoch: {}, Iteration: {}, Train_RMSE: {}, Test_RMSE: {}, MAE: {}, MBE: {}'.format(epoch, iter, RMSE.data, np.mean(test_loss), mae, mbe))
+
+            results.insert(results.shape[1], "P_observ", value=P_observ)
+            results.insert(results.shape[1], "P_pred", value=P_pred)
+
+            RMSE.backward()  # computes derivative of loss
+            optimizer.step()  # next step based on gradient
+            iter += 1
+
+    torch.save(model, PATH_save)
+
+    print('loss: ', RMSE.item())
+
+    return test_loss, results
+
+PATH_load = 'LSTM_Models/LSTM_{}'.format(1)
+PATH_save = 'LSTM_Models/LSTM_{}'.format(2)
+
+load_model = True
+
+if load_model == False:
+    # initialise Model and train IT
+    model = initializeNewModel()
+    test_loss, results = trainModel(model)
+else:
+    # load Model and train it
+    model = torch.load(PATH_load)
+    print("Model loaded")
+    test_loss, results = trainModel(model)
 
 
