@@ -1,5 +1,6 @@
 import numpy as np
 import torch
+import os
 import math
 import torch.nn as nn
 import pandas as pd
@@ -10,7 +11,7 @@ from torch.autograd import Variable
 from DataManagement import get_data, get_features, get_target_Pdc
 
 # Trainings- /Test Set 1
-data = get_data()
+"""data = get_data()
 data_min = data
 
 for Irr in ['GHI', 'DHI', 'gti30t187a', 'ENI']:
@@ -33,7 +34,7 @@ Pdcmean = data.iloc[:, 109:].mean(axis=1)
 BNI_norm = BNI/max(BNI)
 Ta_norm = Ta/max(Ta)
 Pdc_norm = Pdc/max(Pdc)
-GHI_norm = GHI/max(GHI)
+GHI_norm = GHI/max(GHI)"""
 
 
 # Trainings- /Test Set 2
@@ -96,14 +97,13 @@ y_test = torch.from_numpy(test_Y).float()
 ENI_train = torch.from_numpy(train.ENI.values).float()
 ENI_test = torch.from_numpy(test.ENI.values).float()
 
-def initializeNewModel():
-    # Parameter übergabe
+def initializeNewModel(input_dim, hidden_dim, layer_dim, output_dim):
 
     # Initializing LSTM
-    input_dim = X_train.shape[1]
-    hidden_dim = 100
-    layer_dim = 1
-    output_dim = 10
+    # input_dim = number of features
+    # hidden_dim = number of hidden layer
+    # layer_dim = number of stacked LSTM's
+    # output_dim = output horizon
 
     model = LSTMModel.LSTM(input_dim, hidden_dim, layer_dim, output_dim)
 
@@ -116,13 +116,16 @@ def trainModel(model):
     # adjust length to packet size
     batch_size = 200
     seq_dim = 1
-    epochs = 500
+    epochs = 10
     iter = 0
 
     train_loss = []
-    test_loss = []
+    test_rmse = []
+    test_mae = []
+    test_mbe = []
 
     results = pd.DataFrame()
+    metric = pd.DataFrame()
 
     for epoch in range(epochs):
         for step in range(0, int(len(X_train)/batch_size -1)):
@@ -147,12 +150,18 @@ def trainModel(model):
             RMSE = model.loss(train_pred, observ)
 
             train_loss.append(RMSE.data)
-            test_batch_rmse = list()
-            P_pred = list()
-            P_observ = list()
+            """test_batch_rmse = list()
+            test_batch_mae = list()
+            test_batch_mbe = list()"""
+            P_observ = torch.Tensor()
+            P_pred = torch.Tensor()
 
             if iter % 10 == 9:
                  for step in range(0, int(len(X_test)/batch_size - 1)):
+
+                    test_batch_rmse = list()
+                    test_batch_mae = list()
+                    test_batch_mbe = list()
 
                     test_load = Variable(X_test[step * batch_size:(step + 1) * batch_size, :]).view(-1, seq_dim, X_test.shape[1])
                     y = Variable(y_test[step * batch_size:(step + 1) * batch_size])
@@ -165,49 +174,68 @@ def trainModel(model):
                     observ = torch.zeros(size=(y_pred.shape))
 
                     for i in range(0, batch_size):
-                        test_pred[i] = y_pred[i, :] * test_ENI[i]
+                        test_pred[i] = y_pred[i, :] * test_ENI[i]       # (P_pred)test_pred[:, 0] is Pdc_+5min
                         observ[i] = y[i, :] * ENI_test[i]
 
-                    P_observ.append(observ.values, axis=1)
-                    P_pred.append(test_pred.values, axis=1)
+                    P_observ = torch.cat((P_observ, observ), 0)
+                    P_pred = torch.cat((P_pred, test_pred), 0)
 
                     # compute Metrics
                     error = observ.data.numpy() - test_pred.data.numpy().squeeze()
-                    mae = np.nanmean(np.abs(error))
-                    mbe = np.nanmean(error)
-                    rmse = np.sqrt(np.nanmean(error ** 2))
+                    """mae = np.nanmean(np.nanmean(np.abs(error), axis=0))
+                    mbe = np.nanmean(np.nanmean(error, axis=0))
+                    rmse = np.nanmean(np.sqrt(np.nanmean(error ** 2, axis=0)))"""
 
-                    test_batch_rmse.append(np.sqrt(np.mean([error ** 2], axis=1)))
-                    test_loss.append(np.mean([test_batch_rmse], axis=1))
+                    test_batch_rmse = np.sqrt(np.mean(error ** 2, axis=0))
+                    test_batch_mae = np.nanmean(np.abs(error), axis=0)
+                    test_batch_mbe = np.nanmean(error, axis=0)
+                    test_rmse.append(np.mean(test_batch_rmse))
+                    test_mae.append(np.mean(test_batch_mae))
+                    test_mbe.append(np.mean(test_batch_mbe))
 
-                    print('Epoch: {}, Iteration: {}, Train_RMSE: {}, Test_RMSE: {}, MAE: {}, MBE: {}'.format(epoch, iter, RMSE.data, np.mean(test_loss), mae, mbe))
-
-            results.insert(results.shape[1], "P_observ", value=P_observ)
-            results.insert(results.shape[1], "P_pred", value=P_pred)
+                    print('Epoch: {}, Iteration: {}, Train_RMSE: {}, Test_RMSE: {}, MAE: {}, MBE: {}'
+                          .format(epoch, iter, RMSE.data, np.mean(test_rmse), np.mean(test_mae),
+                                  np.mean(test_mbe)))
 
             RMSE.backward()  # computes derivative of loss
             optimizer.step()  # next step based on gradient
             iter += 1
 
+    # save results of one epoch and Model
+    results.insert(results.shape[1], "P_{}_observ".format(epochs), value=P_observ)
+    results.insert(results.shape[1], "P_{}_pred".format(epochs), value=P_pred.detach())
+
+    metric.insert(metric.shape[1], "MAE_{}".format(epochs), value=test_mae)
+    metric.insert(metric.shape[1], "MBE_{}".format(epochs), value=test_mbe)
+    metric.insert(metric.shape[1], "RMSE_{}".format(epochs), value=test_rmse)
+
+    results.to_csv("LSTM_results/resultsLSTM_Epoch_{}.csv".format(epochs))
+    metric.to_csv("LSTM_results/metricLSTM_Epoch_{}.csv".format(epochs))
     torch.save(model, PATH_save)
 
     print('loss: ', RMSE.item())
 
-    return test_loss, results
+    return metric, results
 
-PATH_load = 'LSTM_Models/LSTM_{}'.format(1)
-PATH_save = 'LSTM_Models/LSTM_{}'.format(2)
+# define which Model to load or name Model to be initialized
+Model = 1
 
+PATH_load = 'LSTM_Models/LSTM_{}'.format(Model)
+PATH_save = 'LSTM_Models/LSTM_{}'.format(Model)
+
+# True = load existing Model
+# False = initialize new Model !insert number to not overwrite existing Model!
 load_model = True
 
 if load_model == False:
     # initialise Model and train IT
-    model = initializeNewModel()
+    model = initializeNewModel(input_dim=X_train.shape[1], hidden_dim=100, layer_dim=1, output_dim=10)
     test_loss, results = trainModel(model)
 else:
     # load Model and train it
     model = torch.load(PATH_load)
     print("Model loaded")
     test_loss, results = trainModel(model)
+    print("finished training")
 
 
