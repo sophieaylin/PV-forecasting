@@ -5,7 +5,7 @@ import torch.nn as nn
 class LSTM(torch.nn.Module):
     def __init__(self, input_dim, hidden_dim, layer_dim, output_dim):
         super(LSTM, self).__init__()
-        # Hidden dimensions
+        # Hidden layer/dimensions
         self.hidden_dim = hidden_dim
         # Number of stacked LSTM's
         self.layer_dim = layer_dim # nummer erhöhen

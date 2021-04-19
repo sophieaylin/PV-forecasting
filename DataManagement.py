@@ -229,8 +229,8 @@ data = pd.read_csv(filename)
 data_min = data
 
 CAPACITY = 20808.66
-window_ft = 20 # time window for feature generation (without nan; measurements from 06:40 - 15:40 == window of 108)
-window_tar = 36 # time window for forecast horizon
+window_ft = 6 # time window for feature generation (without nan; measurements from 06:40 - 15:40 == window of 108)
+window_tar = 6 # time window for forecast horizon !adjust horizon respectively in Regression.py!
 delta = 5  # step size [min]
 
 # removing 0 Irradiation, night times (El<5 degrees) and nan

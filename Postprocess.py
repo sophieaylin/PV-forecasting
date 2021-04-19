@@ -6,10 +6,6 @@ import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 
-filenames = ["forecasts_5min_BNI.h5", "forecasts_5min_GHI.h5", "forecasts_10min_BNI.h5", "forecasts_10min_GHI.h5"
-                , "forecasts_15min_BNI.h5", "forecasts_15min_GHI.h5", "forecasts_20min_BNI.h5", "forecasts_20min_GHI.h5"
-                , "forecasts_25min_BNI.h5", "forecasts_25min_GHI.h5", "forecasts_30min_BNI.h5", "forecasts_30min_GHI.h5"]
-
 def summary_stats(target, filenames, baseline="sp"):
     """Compute summary statistics (MAE, MBE, etc.).
 

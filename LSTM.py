@@ -10,34 +10,7 @@ from sklearn.preprocessing import StandardScaler
 from torch.autograd import Variable
 from DataManagement import get_data, get_features, get_target_Pdc
 
-# Trainings- /Test Set 1
-"""data = get_data()
-data_min = data
-
-for Irr in ['GHI', 'DHI', 'gti30t187a', 'ENI']:
-    data_min = data_min.drop(data_min.index[data_min[Irr]==0])
-
-data_min = data_min.dropna(subset=['GHI', 'BNI', 'DHI', 'gti30t187a', 'ENI', 'Pdc_33'])
-
-time = data_min.t
-gti30t187a = data_min.gti30t187a
-GHI = data_min.GHI
-Ta = data_min.Ta
-BNI = data_min.BNI
-wdir = data_min.wdir
-kt = data_min.kt
-Pdc = data_min.Pdc_33
-Pdcmean = data.iloc[:, 109:].mean(axis=1)
-
-# Scaling trainings data: Normalization
-
-BNI_norm = BNI/max(BNI)
-Ta_norm = Ta/max(Ta)
-Pdc_norm = Pdc/max(Pdc)
-GHI_norm = GHI/max(GHI)"""
-
-
-# Trainings- /Test Set 2
+# Trainings- /Test Set
 
 features = get_features()
 target = get_target_Pdc() # includes Trainings and Test data of target
@@ -78,10 +51,8 @@ feature_cols = feature_cols_G + feature_cols_B
 
 train_X = train[feature_cols + ["Pdc_35"]].values #
 test_X = test[feature_cols + ["Pdc_35"]].values #
-train_Y = train[["Pdc_5min"] + ["Pdc_10min"] + ["Pdc_15min"] + ["Pdc_20min"] + ["Pdc_25min"]
-            + ["Pdc_30min"] + ["Pdc_35min"] + ["Pdc_40min"] + ["Pdc_45min"] + ["Pdc_50min"]].values
-test_Y = test[["Pdc_5min"] + ["Pdc_10min"] + ["Pdc_15min"] + ["Pdc_20min"] + ["Pdc_25min"]
-            + ["Pdc_30min"] + ["Pdc_35min"] + ["Pdc_40min"] + ["Pdc_45min"] + ["Pdc_50min"]].values
+train_Y = train[["Pdc_30min"]].values
+test_Y = test[["Pdc_30min"]].values
 
 # Scaler
 scaler = StandardScaler()
@@ -109,14 +80,10 @@ def initializeNewModel(input_dim, hidden_dim, layer_dim, output_dim):
 
     return model
 
-def trainModel(model):
+def trainModel(model, batch_size, seq_dim, epochs):
 
     optimizer = torch.optim.SGD(model.parameters(), lr=1e-4)
 
-    # adjust length to packet size
-    batch_size = 200
-    seq_dim = 1
-    epochs = 10
     iter = 0
 
     train_loss = []
@@ -205,37 +172,42 @@ def trainModel(model):
     results.insert(results.shape[1], "P_{}_observ".format(epochs), value=P_observ)
     results.insert(results.shape[1], "P_{}_pred".format(epochs), value=P_pred.detach())
 
-    metric.insert(metric.shape[1], "MAE_{}".format(epochs), value=test_mae)
-    metric.insert(metric.shape[1], "MBE_{}".format(epochs), value=test_mbe)
-    metric.insert(metric.shape[1], "RMSE_{}".format(epochs), value=test_rmse)
+    metric.insert(metric.shape[1], "MAE", value=test_mae)
+    metric.insert(metric.shape[1], "MBE", value=test_mbe)
+    metric.insert(metric.shape[1], "RMSE", value=test_rmse)
 
-    results.to_csv("LSTM_results/resultsLSTM_Epoch_{}.csv".format(epochs))
-    metric.to_csv("LSTM_results/metricLSTM_Epoch_{}.csv".format(epochs))
+    results.to_csv("LSTM_results/resultsLSTM_Epoch_{}_layer_{}.csv".format(epochs, layer))
+    metric.to_csv("LSTM_results/metricLSTM_Epoch_{}_layer_{}.csv".format(epochs, layer))
     torch.save(model, PATH_save)
 
     print('loss: ', RMSE.item())
 
     return metric, results
 
-# define which Model to load or name Model to be initialized
-Model = 1
+# START
+# define which Model to load or name Model to be initialized (layer = ...)
+layer = 2
 
-PATH_load = 'LSTM_Models/LSTM_{}'.format(Model)
-PATH_save = 'LSTM_Models/LSTM_{}'.format(Model)
+batch_size = 100
+seq_dim = 1
+epochs = 1
+
+PATH_load = 'LSTM_Models/LSTM_Layer_{}'.format(layer)
+PATH_save = 'LSTM_Models/LSTM_Layer_{}'.format(layer)
 
 # True = load existing Model
 # False = initialize new Model !insert number to not overwrite existing Model!
-load_model = True
+load_model = False
 
 if load_model == False:
     # initialise Model and train IT
     model = initializeNewModel(input_dim=X_train.shape[1], hidden_dim=100, layer_dim=1, output_dim=10)
-    test_loss, results = trainModel(model)
+    test_loss, results = trainModel(model, batch_size, seq_dim, epochs)
 else:
     # load Model and train it
     model = torch.load(PATH_load)
     print("Model loaded")
-    test_loss, results = trainModel(model)
+    test_loss, results = trainModel(model, batch_size, seq_dim, epochs)
     print("finished training")
 
 
