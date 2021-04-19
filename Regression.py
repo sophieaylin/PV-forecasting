@@ -51,8 +51,8 @@ def run_forecast(target,horizon):
     feature_cols_B = features.filter(regex="BNI").columns.tolist()
     feature_cols = feature_cols_G + feature_cols_B
 
-    train_X = train[feature_cols + ["Pdc_35"]].values #
-    test_X = test[feature_cols + ["Pdc_35"]].values #
+    train_X = train[feature_cols + ["Pdc_35"]].values #  + ["Pdc_35"]
+    test_X = test[feature_cols + ["Pdc_35"]].values # + ["Pdc_35"]
 
     train_Y = train['Pdc_{}'.format(horizon)].values
     test_Y = test['Pdc_{}'.format(horizon)].values
@@ -82,7 +82,7 @@ def run_forecast(target,horizon):
         train.insert(train.shape[1], "Pdc_{}_{}".format(target,name), train_pred)
         test.insert(test.shape[1], "Pdc_{}_{}".format(target,name), test_pred)
 
-    # Denormalization of target
+    # Denormalization of Power
     train_Y = train_Y * train.ENI # * Capacity
     test_Y = test_Y * test.ENI # * Capacity
 
@@ -114,9 +114,18 @@ def run_forecast(target,horizon):
                            ), "df", mode="w",
               )
 
+# delete all files in folder to avoid having files of a bigger horizon in the folder when testing a smaller
+# horizon -> for postprocess
+for filename in os.listdir("forecasts"):
+    os.remove(os.path.join("forecasts", filename))
+
 target = ["GHI", "BNI"]
 horizon = ["5min", "10min", "15min", "20min", "25min", "30min"]
-
+# "35min", "40min", "45min", "50min", "55min", "60min"
+# "65min", "70min", "75min", "80min", "85min", "90min"
+# "95min", "100min", "105min", "110min", "115min", "120min"
+# "125min", "130min", "135min", "140min", "145min", "150min"
+# "155min", "160min", "165min", "170min", "175min", "180min"
 
 for t in target:
     for h in horizon:

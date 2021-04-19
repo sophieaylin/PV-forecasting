@@ -125,6 +125,11 @@ def run_forecast(target,horizon):
                            ), "df", mode="w",
               )
 
+# delete all files in folder to avoid having files of a bigger horizon in the folder when testing a smaller
+# horizon -> for postprocess
+for filename in os.listdir("forecasts"):
+    os.remove(os.path.join("forecasts", filename))
+
 target = ["GHI", "BNI"]
 horizon = ["5min", "10min", "15min", "20min", "25min", "30min"]
 #horizon_tar = []
