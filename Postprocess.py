@@ -116,7 +116,7 @@ def summary_table(target):
 
     df.to_csv("summary_table_{}.csv".format(target), index=False, sep=";", decimal=",")
     sumdata = pd.DataFrame()
-    sumdata = pd.DataFrame(columns=["model", "MAE", "st", "MBE", "st", "RMSE", "st", "skill", "st"])
+    sumdata = pd.DataFrame(columns=["model", "MAE", "st_MAE", "MBE", "st_MBE", "RMSE", "st_RMSE", "skill", "st"])
 
     # generate table
     for model, group in df.groupby(["model"]):
@@ -126,10 +126,10 @@ def summary_table(target):
         rmse_str = "RMSE: {:.3f} std: {:.2f}".format(group.mean()["RMSE"], group.std()["RMSE"])
         skill_str = "skill: {:.2f} std: {:.2f}".format(group.mean(skipna=True)["skill"] * 100, group.std(skipna=True)["skill"] * 100)
         print("{:<30} && {:<16} & {:<16} & {:<20} & {:<18} \\\\".format(meta_str, mae_str, mbe_str, rmse_str, skill_str))
-        newrow = {"model": model, "MAE": group.mean()["MAE"] , "st":group.std()["MAE"]
-                     , "MBE": group.mean()["MBE"], "st": group.std()["MBE"]
-                     , "RMSE": group.mean()["RMSE"], "st": group.std()["RMSE"]
-                     , "skill": group.mean(skipna=True)["skill"] * 100, "st":group.std(skipna=True)["skill"] * 100}
+        newrow = {"model": model, "MAE": group.mean()["MAE"], "st_MAE": group.std()["MAE"]
+                     , "MBE": group.mean()["MBE"], "st_MBE": group.std()["MBE"]
+                     , "RMSE": group.mean()["RMSE"], "st_RMSE": group.std()["RMSE"]
+                     , "skill": group.mean(skipna=True)["skill"] * 100, "st": group.std(skipna=True)["skill"] * 100}
         sumdata = sumdata.append(newrow, ignore_index=True)
 
     sumdata.to_csv("summary_mean_table_{}.csv".format(target), index=False, sep=";", decimal=",")

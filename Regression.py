@@ -51,8 +51,8 @@ def run_forecast(target,horizon):
     feature_cols_B = features.filter(regex="BNI").columns.tolist()
     feature_cols = feature_cols_G + feature_cols_B
 
-    train_X = train[feature_cols + ["Pdc_35"]].values #  + ["Pdc_35"]
-    test_X = test[feature_cols + ["Pdc_35"]].values # + ["Pdc_35"]
+    train_X = train[feature_cols].values #  + ["Pdc_35"]
+    test_X = test[feature_cols].values # + ["Pdc_35"]
 
     train_Y = train['Pdc_{}'.format(horizon)].values
     test_Y = test['Pdc_{}'.format(horizon)].values
@@ -121,11 +121,11 @@ for filename in os.listdir("forecasts"):
 
 target = ["GHI", "BNI"]
 horizon = ["5min", "10min", "15min", "20min", "25min", "30min"]
-# "35min", "40min", "45min", "50min", "55min", "60min"
-# "65min", "70min", "75min", "80min", "85min", "90min"
-# "95min", "100min", "105min", "110min", "115min", "120min"
-# "125min", "130min", "135min", "140min", "145min", "150min"
-# "155min", "160min", "165min", "170min", "175min", "180min"
+
+""""35min", "40min", "45min", "50min", "55min", "60min",
+"65min", "70min", "75min", "80min", "85min", "90min", "95min", "100min", "105min", "110min", "115min",
+"120min", "125min", "130min", "135min", "140min", "145min", "150min", "155min", "160min", "165min",
+"170min", "175min", "180min"]"""
 
 for t in target:
     for h in horizon:
