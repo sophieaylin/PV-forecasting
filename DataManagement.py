@@ -229,17 +229,9 @@ data = pd.read_csv(filename)
 data_min = data
 
 CAPACITY = 20808.66
-window_ft = 6 # time window for feature generation (without nan; measurements from 06:40 - 15:40 == window of 108)
-window_tar = 6 # time window for forecast horizon !adjust horizon respectively in Regression.py!
+window_ft = 176 # time window for feature generation (without nan; measurements from 06:40 - 15:40 == window of 108)
+window_tar = 36 # time window for forecast horizon !!!adjust horizon respectively in Regression.py!!!; 36 for LSTM
 delta = 5  # step size [min]
-
-# removing 0 Irradiation, night times (El<5 degrees) and nan
-"""for Irr in ['GHI', 'DHI', 'gti30t187a', 'ENI']:
-    data_min = data_min.drop(data_min.index[data_min[Irr] == 0])
-
-data_min = data_min.drop(data_min.index[data_min["El"] < 5])
-
-data_min = data_min.dropna(subset=['GHI', 'BNI', 'DHI', 'gti30t187a', 'ENI', 'El'])"""
 
 # Trainingsset: "big" year, "small" year / chronologically
 
@@ -261,13 +253,13 @@ for t in [first, second, third]:
      spring = pd.concat([spring, spr], axis=0)
      summer = pd.concat([summer, sum], axis=0)
 
-"""train = pd.concat([autumn[0:int(len(autumn) * 0.8)], winter[0:int(len(winter) * 0.8)],
+train = pd.concat([autumn[0:int(len(autumn) * 0.8)], winter[0:int(len(winter) * 0.8)],
                    spring[0:int(len(spring) * 0.8)], summer[0:int(len(summer) * 0.8)]], axis=0)
 
 test = pd.concat([autumn[int(len(autumn) * 0.8):len(autumn)], winter[int(len(winter) * 0.8):len(winter)],
-                  spring[int(len(spring) * 0.8):len(spring)], summer[int(len(summer) * 0.8):len(summer)]], axis=0)"""
+                  spring[int(len(spring) * 0.8):len(spring)], summer[int(len(summer) * 0.8):len(summer)]], axis=0)
 
-train, test = data_min[0:round(len(data_min)*0.8)], data_min[round(len(data_min)*0.8):len(data_min)]
+"""train, test = data_min[0:round(len(data_min)*0.8)], data_min[round(len(data_min)*0.8):len(data_min)]"""
 
 # time dependent Variables
 time_train, time_test = train.t, test.t
@@ -289,3 +281,30 @@ TL_train, TL_test = train.TL, test.TL
 Ta_train, Ta_test = train.Ta, test.Ta
 vw_train, vw_test = train.vw, test.vw
 AMa_train, AMa_test = train.AMa, test.AMa
+
+""" qsub -N other_name -l select=2:node_type=hsw:mpiprocs=24 -l walltime=00:20:00 my_batchjob_script.pbs
+putty.exe -ssh hpcsayli@vulcan.hww.hlrs.de
+
+scp LOCALPATH/FILE hpcsayli@vulcan.hww.hlrs.de:$HOME/...
+
+qsub -I -l walltime=01:00:00
+
+qsub -v -l select=10:ncpus=40 -l walltime=03:00:00 script.pbs
+
+#!/usr/bin/env bash
+#PBS -l select=1:node_type=skl192gb40c:mpiprocs=40
+#PBS -m abe
+#
+# Print CPU information
+NCPUS=$(sort -u $PBS_NODEFILE)
+echo "Assigned node(s):"
+echo "Node ID: $(pbsnodes $NCPUS)"
+NCPUS=$(pbsnodes $NCPUS | grep pcpus | grep -Eo [0-9]+)
+#
+# using the INTEL MPI module
+module load mpi/impi
+mpirun -np 1 -ppn $NCPUS "python_script.py"
+#
+echo "Job ended $(date)"
+
+"""
