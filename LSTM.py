@@ -112,11 +112,11 @@ def initializeNewModel(input_dim, hidden_dim, layer_dim, output_dim):
 
 def trainModel(model, batch_size, seq_dim, epochs):
 
-    optimizer = torch.optim.SGD(model.parameters(), lr=1e-4, momentum=0.9)
+    optimizer = torch.optim.Adagrad(model.parameters(), lr=1e-4)
     # SGD(model.parameters(), lr=1e-4, momentum=0.9)
     # Adam(model.parameters(), lr=1e-3)
     # Adagrad(model.parameters(), lr=1e-3)
-    # Adadelta(model.parameters(), lr=1e-3
+    # Adadelta(model.parameters(), lr=1e-3)
 
     iter = 0
 
@@ -172,16 +172,17 @@ def trainModel(model, batch_size, seq_dim, epochs):
                     observ = torch.zeros(size=(y_pred.shape))
                     P_observ_sp = np.zeros(len(y_pred))
                     P_pred_sp = np.zeros(len(y_pred))
+                    error_sp = np.zeros((batch_size, y_pred.shape[1]))
 
                     for i in range(0, batch_size):
                         test_pred[i] = y_pred[i, :] * test_ENI[i]       # (P_pred)test_pred[:, 0] is Pdc_+5min
                         observ[i] = y[i, :] * ENI_test[i]
-                        P_observ_sp[i] = observ[i][0]
+                        # P_observ_sp[i] = observ[i][0]
                         P_pred_sp[i] = test_pred[i][0]
+                        error_sp[i] = observ[i].data.numpy() - P_pred_sp[i]
 
                     # compute Metrics
                     error = observ.data.numpy() - test_pred.data.numpy().squeeze()
-                    error_sp = P_observ_sp - P_pred_sp
 
                     test_batch_rmse = np.sqrt(np.nanmean(error ** 2, axis=0))
                     test_batch_rmse_sp = np.sqrt(np.nanmean(error_sp ** 2, axis=0))
@@ -218,7 +219,7 @@ layer = 2
 
 batch_size = 176 # ein Tag mit Nachtstunden
 seq_dim = 1
-epochs = 5
+epochs = 20
 
 # _fillna_bignegative'.format(layer, X_train.shape[1])
 PATH_load = 'LSTM_Models/LSTM_Layer_{}_Input_{}'.format(layer, X_train.shape[1])

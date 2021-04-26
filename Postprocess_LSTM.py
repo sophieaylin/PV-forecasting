@@ -15,22 +15,26 @@ def computeMetrics(path):
     MAE = []
     MBE = []
     RMSE = []
+    RMSE_sp = []
     skill = []
 
     for line in range(len(file)):
         row_mae = mae[line].strip("[]").split()
         row_mbe = mbe[line].strip("[]").split()
         row_rmse = rmse[line].strip("[]").split()
-        for i, (item_mae, item_mbe, item_rmse) in enumerate(zip(row_mae, row_mbe, row_rmse)):
+        row_rmse_sp = rmse_sp[line].strip("[]").split()
+        for i, (item_mae, item_mbe, item_rmse, item_rmse_sp) in enumerate(zip(row_mae, row_mbe, row_rmse, row_rmse_sp)):
             row_mae[i] = float(item_mae)
             row_mbe[i] = float(item_mbe)
             row_rmse[i] = float(item_rmse)
+            row_rmse_sp[i] = float(item_rmse_sp)
         MAE.append(row_mae)
         MBE.append(row_mbe)
         RMSE.append(row_rmse)
+        RMSE_sp.append(row_rmse_sp)
 
-    for i in range(len(rmse_sp)):
-        row = 1 - (RMSE[i] / rmse_sp[i])
+    for i in range(len(RMSE_sp)):
+        row = [(1 - n/m) for n,m in zip(RMSE[i], RMSE_sp[i])]
         skill.append(row)
 
     mae_mean = np.mean(MAE, axis=0)
@@ -45,5 +49,5 @@ def computeMetrics(path):
 
     return None
 
-path = "D:/TU_Stuttgart/Studienarbeit/LSTM_results/metricLSTM_layer_2_Input_137.csv"
+path = "D:/TU_Stuttgart/Studienarbeit/LSTM_results/metricLSTM_layer_2_Input_1591.csv"
 computeMetrics(path)
