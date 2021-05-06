@@ -32,7 +32,7 @@ def get_features (deep_copy = True):
     featuresL_GHI.insert(0, column='L_GHI_kt_0', value=B_GHI_kt)
     featuresL_BNI.insert(0, column='L_BNI_kt_0', value=B_BNI_kt)
 
-    for col in range(0, window_ft): # ,shift; zip(range(0, window), range(-1, -(window+1), -1))
+    for col in range(0, window_ft):
         featuresB_GHI.insert(col, column='B_GHI_kt_%i' % col, value=B_GHI_kt)
         featuresB_BNI.insert(col, column='B_BNI_kt_%i' % col, value=B_BNI_kt)
         BGHI_shift = B_GHI_kt_1.shift(periods=col+1)
@@ -43,16 +43,16 @@ def get_features (deep_copy = True):
         B_GHI_kt = featuresL_GHI.mean(axis=1)
         B_BNI_kt = featuresL_BNI.mean(axis=1)
 
-    featuresL_GHI = featuresL_GHI.drop('L_GHI_kt_6', axis=1)
-    featuresL_BNI = featuresL_BNI.drop('L_BNI_kt_6', axis=1)
-    GHI_kt_mean = featuresB_GHI["B_GHI_kt_5"].to_frame()
-    BNI_kt_mean = featuresB_BNI["B_BNI_kt_5"].to_frame()
+    featuresL_GHI = featuresL_GHI.drop('L_GHI_kt_{}'.format(window_ft), axis=1)
+    featuresL_BNI = featuresL_BNI.drop('L_BNI_kt_{}'.format(window_ft), axis=1)
+    GHI_kt_mean = featuresB_GHI["B_GHI_kt_{}".format(window_ft-1)].to_frame()
+    BNI_kt_mean = featuresB_BNI["B_BNI_kt_{}".format(window_ft-1)].to_frame()
 
     for col in range(0, window_ft):
         delta_kt_GHI = featuresL_GHI.iloc[:, 0:col+1].sub(GHI_kt_mean.values.reshape(len(GHI_kt_mean), col+1)).pow(2)
         delta_kt_BNI = featuresL_BNI.iloc[:, 0:col+1].sub(BNI_kt_mean.values.reshape(len(BNI_kt_mean), col+1)).pow(2)
-        GHI_kt_mean.insert(col+1, column="times_%i" % col, value=GHI_kt_mean.B_GHI_kt_5.values)
-        BNI_kt_mean.insert(col+1, column="times_%i" % col, value=BNI_kt_mean.B_BNI_kt_5.values)
+        GHI_kt_mean.insert(col+1, column="times_%i" % col, value=GHI_kt_mean["B_GHI_kt_{}".format(window_ft-1)].values)
+        BNI_kt_mean.insert(col+1, column="times_%i" % col, value=BNI_kt_mean["B_BNI_kt_{}".format(window_ft-1)].values)
         V_GHI_kt = pd.Series(np.sqrt(np.divide(delta_kt_GHI.sum(axis=1), col+1)))
         V_BNI_kt = pd.Series(np.sqrt(np.divide(delta_kt_BNI.sum(axis=1), col+1)))
         featuresV_GHI.insert(col, column='V_GHI_kt_%i' % col, value=V_GHI_kt)
@@ -62,7 +62,7 @@ def get_features (deep_copy = True):
                           featuresL_GHI, featuresL_BNI, Ta_train, TL_train, vw_train, AMa_train], axis=1)
 
     features_train.insert(features_train.shape[1], "dataset", "Train")
-    features_train = features_train[1:len(features_train)]
+    ft_train = features_train[0:len(features_train) - window_tar]
 
     # Test features
 
@@ -83,7 +83,7 @@ def get_features (deep_copy = True):
     featuresL_GHI.insert(0, column='L_GHI_kt_0', value=B_GHI_kt)
     featuresL_BNI.insert(0, column='L_BNI_kt_0', value=B_BNI_kt)
 
-    for col, shift in zip(range(0, window_ft), range(-1, -(window_ft + 1), -1)):
+    for col in range(0, window_ft):
         featuresB_GHI.insert(col, column='B_GHI_kt_%i' % col, value=B_GHI_kt)
         featuresB_BNI.insert(col, column='B_BNI_kt_%i' % col, value=B_BNI_kt)
         BGHI_shift = B_GHI_kt_1.shift(periods=col + 1)
@@ -94,18 +94,18 @@ def get_features (deep_copy = True):
         B_GHI_kt = featuresL_GHI.mean(axis=1)
         B_BNI_kt = featuresL_BNI.mean(axis=1)
 
-    featuresL_GHI = featuresL_GHI.drop('L_GHI_kt_6', axis=1)
-    featuresL_BNI = featuresL_BNI.drop('L_BNI_kt_6', axis=1)
-    GHI_kt_mean = featuresB_GHI["B_GHI_kt_5"].to_frame()
-    BNI_kt_mean = featuresB_BNI["B_BNI_kt_5"].to_frame()
+    featuresL_GHI = featuresL_GHI.drop('L_GHI_kt_{}'.format(window_ft), axis=1)
+    featuresL_BNI = featuresL_BNI.drop('L_BNI_kt_{}'.format(window_ft), axis=1)
+    GHI_kt_mean = featuresB_GHI["B_GHI_kt_{}".format(window_ft-1)].to_frame()
+    BNI_kt_mean = featuresB_BNI["B_BNI_kt_{}".format(window_ft-1)].to_frame()
 
     for col in range(0, window_ft):
         delta_kt_GHI = featuresL_GHI.iloc[:, 0:col + 1].sub(GHI_kt_mean.values.reshape(len(GHI_kt_mean), col + 1)).pow(
             2)
         delta_kt_BNI = featuresL_BNI.iloc[:, 0:col + 1].sub(BNI_kt_mean.values.reshape(len(BNI_kt_mean), col + 1)).pow(
             2)
-        GHI_kt_mean.insert(col + 1, column="times_%i" % col, value=GHI_kt_mean.B_GHI_kt_5.values)
-        BNI_kt_mean.insert(col + 1, column="times_%i" % col, value=BNI_kt_mean.B_BNI_kt_5.values)
+        GHI_kt_mean.insert(col + 1, column="times_%i" % col, value=GHI_kt_mean["B_GHI_kt_{}".format(window_ft-1)].values)
+        BNI_kt_mean.insert(col + 1, column="times_%i" % col, value=BNI_kt_mean["B_BNI_kt_{}".format(window_ft-1)].values)
         V_GHI_kt = pd.Series(np.sqrt(np.divide(delta_kt_GHI.sum(axis=1), col + 1)))
         V_BNI_kt = pd.Series(np.sqrt(np.divide(delta_kt_BNI.sum(axis=1), col + 1)))
         featuresV_GHI.insert(col, column='V_GHI_kt_%i' % col, value=V_GHI_kt)
@@ -115,44 +115,85 @@ def get_features (deep_copy = True):
                           featuresL_GHI, featuresL_BNI, Ta_test, TL_test, vw_test, AMa_test], axis=1)
 
     features_test.insert(features_test.shape[1], "dataset", "Test")
-    features_test = features_test[1:len(features_test)]
+    ft_test = features_test[0:len(features_test) - window_tar]
 
-    features = pd.concat([features_train, features_test], axis=0)
+    features = pd.concat([ft_train, ft_test], axis=0)
 
     return features.copy(deep_copy)
 
 def get_target_Pdc (deep_copy = True):
     # for Output -> Y (Power)
     # Train target
+    # For Linear Regression for time t: x(t), y(t+1) in one row, SEE
+    # https://ichi.pro/de/so-formen-sie-daten-neu-und-fuhren-mit-lstm-eine-regression-fur-zeitreihen-durch-21155626274048
 
     Pdc_shift = pd.DataFrame()
     Pdc_norm = Pdc_train.div(ENI_train)
+    Pdc_sp = Pdc_norm.shift(periods=1)
+    Pdc_shift.insert(0, column='Pdc_sp', value=Pdc_sp)
 
-    for col in range(0, window_tar + 1):
-        Pdc_shift.insert(col, column='Pdc_{}min'.format(delta * (col)), value=Pdc_norm)
+    for col in range(1, window_tar + 1):
         Pdc_norm = Pdc_norm.shift(periods=-1)
+        Pdc_shift.insert(col, column='Pdc_{}min'.format(delta * (col)), value=Pdc_norm)
 
     target_train = pd.concat([time_train, Pdc_shift, ENI_train, El_train, Pdc_train], axis=1)
     target_train.insert(target_train.shape[1], "dataset", "Train")
-    target_train.shift(periods=-1)
-    target_train = target_train[0:len(target_train) - 1]
+    t_train = target_train[0:len(target_train) - window_tar] # +1? wegen dem Pdc_sp ? denk nicht
 
     # Test target
 
     Pdc_shift = pd.DataFrame()
     Pdc_norm = Pdc_test.div(ENI_test)
+    Pdc_sp = Pdc_norm.shift(periods=1)
+    Pdc_shift.insert(0, column='Pdc_sp', value=Pdc_sp)
 
-    for col in range(0, window_tar + 1):
+    for col in range(1, window_tar + 1):
+        Pdc_norm = Pdc_norm.shift(periods=-1)
+        Pdc_shift.insert(col, column='Pdc_{}min'.format(delta * (col)), value=Pdc_norm)
+
+    target_test = pd.concat([time_test, Pdc_shift, ENI_test, El_test, Pdc_test], axis=1)
+    target_test.insert(target_test.shape[1], "dataset", "Test")
+    t_test = target_test[0:len(target_test) - window_tar]
+
+    target = pd.concat([t_train, t_test], axis=0)
+
+    return target.copy(deep_copy)
+
+def get_target_LSTM(deep_copy = True):
+    # for Output -> Y (Power)
+    # Train target
+    # for LSTM Input for time t: x(t), y(t) in one row
+    # take the shortest backwards step as Smart Persistence Model (sp)
+
+    Pdc_shift = pd.DataFrame()
+    Pdc_norm = Pdc_train.div(ENI_train)
+    Pdc_sp = Pdc_train.shift(periods=1)
+    Pdc_shift.insert(0, column='Pdc_sp', value=Pdc_sp)
+
+    for col in range(1, window_tar + 1):
+        Pdc_shift.insert(col, column='Pdc_{}min'.format(delta * (col)), value=Pdc_norm)
+        Pdc_norm = Pdc_norm.shift(periods=-1)
+
+    target_train = pd.concat([time_train, Pdc_shift, ENI_train, El_train, Pdc_train], axis=1)
+    target_train.insert(target_train.shape[1], "dataset", "Train")
+    t_train = target_train[0:len(target_train) - window_tar]
+
+    # Test target
+
+    Pdc_shift = pd.DataFrame()
+    Pdc_norm = Pdc_test.div(ENI_test)
+    Pdc_sp = Pdc_test.shift(periods=1)
+    Pdc_shift.insert(0, column='Pdc_sp', value=Pdc_sp)
+
+    for col in range(1, window_tar + 1):
         Pdc_shift.insert(col, column='Pdc_{}min'.format(delta * (col)), value=Pdc_norm)
         Pdc_norm = Pdc_norm.shift(periods=-1)
 
     target_test = pd.concat([time_test, Pdc_shift, ENI_test, El_test, Pdc_test], axis=1)
     target_test.insert(target_test.shape[1], "dataset", "Test")
-    target_test.shift(periods=-1)
-    target_test = target_test[0:len(target_test) - 1]
+    t_test = target_test[0:len(target_test) - window_tar]
 
-    target = pd.concat([target_train, target_test], axis=0)
-
+    target = pd.concat([t_train, t_test], axis=0)
     return target.copy(deep_copy)
 
 def get_target_Irr(deep_copy = True):
@@ -165,6 +206,14 @@ def get_target_Irr(deep_copy = True):
     BNI_kt_train = BNI_train.div(ENI_train)
 
     for blk in range(0, window_tar):
+        GHI_train = GHI_train.shift(periods=-1)
+        BNI_train = BNI_train.shift(periods=-1)
+        CSGHI_train = CSGHI_train.shift(periods=-1)
+        CSBNI_train = CSBNI_train.shift(periods=-1)
+        GHI_KT_train = GHI_KT_train.shift(periods=-1)
+        BNI_kt_train = BNI_kt_train.shift(periods=-1)
+        El_train = El_train.shift(periods=-1)
+        ENI_train = ENI_train.shift(periods=-1)
         block = pd.DataFrame()
         block.insert(0, column="GHI_{}min".format(delta * (blk + 1)), value=GHI_train)
         block.insert(1, column="BNI_{}min".format(delta * (blk + 1)), value=BNI_train)
@@ -175,18 +224,14 @@ def get_target_Irr(deep_copy = True):
         block.insert(6, column="El_{}min".format(delta * (blk + 1)), value=El_train)
         block.insert(7, column="ENI_{}min".format(delta * (blk + 1)), value=ENI_train)
         target_Irr_train = pd.concat([target_Irr_train, block], axis=1)
-        GHI_train = GHI_train.shift(periods=-1)
-        BNI_train = BNI_train.shift(periods=-1)
-        CSGHI_train = CSGHI_train.shift(periods=-1)
-        CSBNI_train = CSBNI_train.shift(periods=-1)
-        GHI_KT_train = GHI_KT_train.shift(periods=-1)
-        BNI_kt_train = BNI_kt_train.shift(periods=-1)
-        El_train = El_train.shift(periods=-1)
-        ENI_train = ENI_train.shift(periods=-1)
+
+    target_Irr_train = pd.concat([time_train, target_Irr_train], axis=1) # del later, just for validation
 
     target_Irr_train.insert(target_Irr_train.shape[1], "dataset", "Train")
-    target_Irr_train.shift(periods=-1)
-    target_Irr_train = target_Irr_train[0:len(target_Irr_train)-1]
+    t_Irr_train = target_Irr_train[0:len(target_Irr_train) - window_tar]
+
+    # key = pd.DataFrame(np.array(range(0, len(t_Irr_train))), columns=["key"])  # del later, just for validation
+    # tar_Irr_train = pd.concat([key, t_Irr_train], axis=1)  # del later, just for validation
 
     # Test target
 
@@ -196,6 +241,14 @@ def get_target_Irr(deep_copy = True):
     BNI_kt_test = BNI_test.div(ENI_test)
 
     for blk in range(0, window_tar):
+        GHI_test = GHI_test.shift(periods=-1)
+        BNI_test = BNI_test.shift(periods=-1)
+        CSGHI_test = CSGHI_test.shift(periods=-1)
+        CSBNI_test = CSBNI_test.shift(periods=-1)
+        GHI_KT_test = GHI_KT_test.shift(periods=-1)
+        BNI_kt_test = BNI_kt_test.shift(periods=-1)
+        El_test = El_test.shift(periods=-1)
+        ENI_test = ENI_test.shift(periods=-1)
         block = pd.DataFrame()
         block.insert(0, column="GHI_{}min".format(delta * (blk + 1)), value=GHI_test)
         block.insert(1, column="BNI_{}min".format(delta * (blk + 1)), value=BNI_test)
@@ -206,20 +259,16 @@ def get_target_Irr(deep_copy = True):
         block.insert(6, column="El_{}min".format(delta * (blk + 1)), value=El_test)
         block.insert(7, column="ENI_{}min".format(delta * (blk + 1)), value=ENI_test)
         target_Irr_test = pd.concat([target_Irr_test, block], axis=1)
-        GHI_test = GHI_test.shift(periods=-1)
-        BNI_test = BNI_test.shift(periods=-1)
-        CSGHI_test = CSGHI_test.shift(periods=-1)
-        CSBNI_test = CSBNI_test.shift(periods=-1)
-        GHI_KT_test = GHI_KT_test.shift(periods=-1)
-        BNI_kt_test = BNI_kt_test.shift(periods=-1)
-        El_test = El_test.shift(periods=-1)
-        ENI_test = ENI_test.shift(periods=-1)
+
+    target_Irr_test = pd.concat([time_test, target_Irr_test], axis=1) # del later, just for validation
 
     target_Irr_test.insert(target_Irr_test.shape[1], "dataset", "Test")
-    target_Irr_test.shift(periods=-1)
-    target_Irr_test = target_Irr_test[0:len(target_Irr_test) - 1]
+    t_Irr_test = target_Irr_test[0:len(target_Irr_test) - window_tar]
 
-    target = pd.concat([target_Irr_train, target_Irr_test], axis=0)
+    # key = pd.DataFrame(np.array(range(0, len(t_Irr_test))), columns=["key"]) # del later, just for validation
+    # tar_Irr_test = pd.concat([key, t_Irr_test], axis=1) # del later, just for validation
+
+    target = pd.concat([t_Irr_train, t_Irr_test], axis=0)
 
     return target.copy(deep_copy)
 
@@ -229,8 +278,8 @@ data = pd.read_csv(filename)
 data_min = data
 
 CAPACITY = 20808.66
-window_ft = 176 # time window for feature generation (without nan; measurements from 06:40 - 15:40 == window of 108)
-window_tar = 36 # time window for forecast horizon !!!adjust horizon respectively in Regression.py!!!; 36 for LSTM
+window_ft = 18 # time window for feature generation; LSTM (3-23) (6-41)
+window_tar = 6 # time window for forecast horizon !!!adjust horizon respectively in Regression.py!!!; 36 for LSTM
 delta = 5  # step size [min]
 
 # Trainingsset: "big" year, "small" year / chronologically
@@ -253,13 +302,13 @@ for t in [first, second, third]:
      spring = pd.concat([spring, spr], axis=0)
      summer = pd.concat([summer, sum], axis=0)
 
-train = pd.concat([autumn[0:int(len(autumn) * 0.8)], winter[0:int(len(winter) * 0.8)],
+"""train = pd.concat([autumn[0:int(len(autumn) * 0.8)], winter[0:int(len(winter) * 0.8)],
                    spring[0:int(len(spring) * 0.8)], summer[0:int(len(summer) * 0.8)]], axis=0)
 
 test = pd.concat([autumn[int(len(autumn) * 0.8):len(autumn)], winter[int(len(winter) * 0.8):len(winter)],
-                  spring[int(len(spring) * 0.8):len(spring)], summer[int(len(summer) * 0.8):len(summer)]], axis=0)
+                  spring[int(len(spring) * 0.8):len(spring)], summer[int(len(summer) * 0.8):len(summer)]], axis=0)"""
 
-"""train, test = data_min[0:round(len(data_min)*0.8)], data_min[round(len(data_min)*0.8):len(data_min)]"""
+train, test = data_min[0:round(len(data_min)*0.8)], data_min[round(len(data_min)*0.8):len(data_min)]
 
 # time dependent Variables
 time_train, time_test = train.t, test.t
@@ -281,6 +330,7 @@ TL_train, TL_test = train.TL, test.TL
 Ta_train, Ta_test = train.Ta, test.Ta
 vw_train, vw_test = train.vw, test.vw
 AMa_train, AMa_test = train.AMa, test.AMa
+
 
 """ qsub -N other_name -l select=2:node_type=hsw:mpiprocs=24 -l walltime=00:20:00 my_batchjob_script.pbs
 putty.exe -ssh hpcsayli@vulcan.hww.hlrs.de
