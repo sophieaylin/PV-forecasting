@@ -10,13 +10,13 @@ import LSTMModel
 from random import random
 from sklearn.preprocessing import StandardScaler
 from torch.autograd import Variable
-from DataManagement import get_features, get_target_Pdc
-from treatNaNs import IndicatorNaN
+from DataManagement import get_features, get_target_LSTM
+from treatNaNs import IndicatorNaN, split_sequences
 
 # Trainings- /Test Set
 
 features = get_features()
-target = get_target_Pdc() # includes Trainings and Test data of target
+target = get_target_LSTM() # includes Trainings and Test data of target
 features.insert(features.shape[1], column="key", value = np.array(range(0,len(features))))
 target.insert(target.shape[1], column="key", value = np.array(range(0,len(target))))
 tar = target.drop('t', axis=1)
@@ -38,12 +38,12 @@ train = train.between_time("05:35:00", "20:05:00")
 test = test.between_time("05:35:00", "20:05:00")
 
 # Include Pdc in Trainingsset       # Normalisert?
-Pdc_35_train = train.Pdc_33.shift(periods=7)
-Pdc_35_train = Pdc_35_train[14:]
-Pdc_35_test = test.Pdc_33.shift(periods=7)
-Pdc_35_test = Pdc_35_test[14:]
-train = train[0:(len(train)-14)]
-test = test[0:(len(test)-14)]
+Pdc_35_train = train.Pdc_33.shift(periods=36)
+Pdc_35_train = Pdc_35_train[72:]
+Pdc_35_test = test.Pdc_33.shift(periods=36)
+Pdc_35_test = Pdc_35_test[72:]
+train = train[0:(len(train)-72)]
+test = test[0:(len(test)-72)]
 train.insert(len(train.columns), column="Pdc_35", value=Pdc_35_train.values)
 test.insert(len(test.columns), column="Pdc_35", value=Pdc_35_test.values)
 
@@ -52,20 +52,20 @@ feature_cols_B = features.filter(regex="BNI").columns.tolist()
 feature_cols = feature_cols_G + feature_cols_B
 tar_cols = target.filter(regex="min").columns.tolist()
 
-train_X = train[feature_cols + ["Pdc_35"] + ["Ta"] + ["TL"] + ["vw"] + ["AMa"]]
-test_X = test[feature_cols + ["Pdc_35"] + ["Ta"] + ["TL"] + ["vw"] + ["AMa"]]
+train_X = train[feature_cols + ["Pdc_35"] + ["Ta"] + ["TL"] + ["vw"] + ["AMa"]] #
+test_X = test[feature_cols + ["Pdc_35"] + ["Ta"] + ["TL"] + ["vw"] + ["AMa"]] #
 train_Y = train[tar_cols]
 test_Y = test[tar_cols]
 
 # nan values
-"""train_X = train_X.fillna(value=0.00) # train_X = train_X.fillna(value=0)
-test_X = test_X.fillna(value=0.00)
-train_Y = train_Y.fillna(value=0.00)
-test_Y = test_Y.fillna(value=0.00) # oder muss test_Y unbearbeitet bleiben?"""
+"""train_X = train_X.fillna(value=-10000) # train_X = train_X.fillna(value=0)
+test_X = test_X.fillna(value=-10000)
+train_Y = train_Y.fillna(value=-10000)
+test_Y = test_Y.fillna(value=-10000) # oder muss test_Y unbearbeitet bleiben?"""
 
 # Indicator on missing values
 
-train_X, test_X, train_Y, test_Y = IndicatorNaN(train_X, test_X, train_Y, test_Y)
+train_X, test_X, train_Y = IndicatorNaN(train_X, test_X, train_Y)
 
 # multiple Imputation
 """train_X_V1 = train_X.fillna(value=random())
@@ -78,17 +78,30 @@ test_X_V3 = train_X.fillna(value=random())
 train_X = pd.concat([train_X_V1, train_X_V2, train_X_V3], axis=1)
 test_X = pd.concat([test_X_V1, test_X_V2, test_X_V3], axis=1)"""
 
+# take the shortest backwards step as Smat Persistence Model
+Pdc_sp_train = train["Pdc_sp"]
+Pdc_sp_test = test["Pdc_sp"]
+
 # numpy.ndarray
 train_X = train_X.values
 test_X = test_X.values
 train_Y = train_Y.values
 test_Y = test_Y.values
 
-# Scaler
+# Scaler !oder MinMaxScaler: auch y gescaled!
 scaler = StandardScaler()
 scaler.fit(train_X)
 train_X = scaler.transform(train_X)
 test_X = scaler.transform(test_X)
+
+"""# define forecast window and target window
+seq_dim = 60
+window_tar = 36
+
+traindata_stacked = np.hstack((train_X, train_Y))
+testdata_stacked = np.hstack((test_X, test_Y))
+X,y = split_sequences(traindata_stacked, seq_dim, window_tar)
+test_X, test_Y = split_sequences(testdata_stacked, seq_dim, window_tar)"""
 
 # to torch
 X_train = torch.from_numpy(train_X).float()
@@ -97,6 +110,8 @@ y_train = torch.from_numpy(train_Y).float()
 y_test = torch.from_numpy(test_Y).float()
 ENI_train = torch.from_numpy(train.ENI.values).float()
 ENI_test = torch.from_numpy(test.ENI.values).float()
+Pdc_sp_tr = torch.from_numpy(Pdc_sp_train.values).float()
+Pdc_sp_te = torch.from_numpy(Pdc_sp_test.values).float()
 
 def initializeNewModel(input_dim, hidden_dim, layer_dim, output_dim):
 
@@ -112,7 +127,7 @@ def initializeNewModel(input_dim, hidden_dim, layer_dim, output_dim):
 
 def trainModel(model, batch_size, seq_dim, epochs):
 
-    optimizer = torch.optim.Adagrad(model.parameters(), lr=1e-4)
+    optimizer = torch.optim.Adam(model.parameters(), lr=1e-3)
     # SGD(model.parameters(), lr=1e-4, momentum=0.9)
     # Adam(model.parameters(), lr=1e-3)
     # Adagrad(model.parameters(), lr=1e-3)
@@ -122,7 +137,7 @@ def trainModel(model, batch_size, seq_dim, epochs):
 
     train_loss = []
     test_rmse = []
-    test_rmse_sp= []
+    test_rmse_sp = []
     test_mae = []
     test_mbe = []
 
@@ -130,6 +145,7 @@ def trainModel(model, batch_size, seq_dim, epochs):
     metric = pd.DataFrame()
 
     for epoch in range(epochs):
+        # one epoch = one time through dataset
         for step in range(0, int(len(X_train)/batch_size -1)):
 
             train_load = Variable(X_train[step * batch_size:(step+1) * batch_size, :]).view(-1, seq_dim, X_train.shape[1])
@@ -163,6 +179,7 @@ def trainModel(model, batch_size, seq_dim, epochs):
 
                     test_load = Variable(X_test[step * batch_size:(step + 1) * batch_size, :]).view(-1, seq_dim, X_test.shape[1])
                     y = Variable(y_test[step * batch_size:(step + 1) * batch_size])
+                    Pdc_sp = Variable(Pdc_sp_te[step * batch_size:(step + 1) * batch_size])
 
                     y_pred = model(test_load)
 
@@ -170,19 +187,16 @@ def trainModel(model, batch_size, seq_dim, epochs):
                     test_ENI = Variable(ENI_test[step * batch_size:(step + 1) * batch_size])
                     test_pred = torch.zeros(size=(y_pred.shape))
                     observ = torch.zeros(size=(y_pred.shape))
-                    P_observ_sp = np.zeros(len(y_pred))
-                    P_pred_sp = np.zeros(len(y_pred))
-                    error_sp = np.zeros((batch_size, y_pred.shape[1]))
+                    error_sp = np.zeros(shape=(y_pred.shape))
 
                     for i in range(0, batch_size):
-                        test_pred[i] = y_pred[i, :] * test_ENI[i]       # (P_pred)test_pred[:, 0] is Pdc_+5min
+                        test_pred[i] = y_pred[i, :] * test_ENI[i]
                         observ[i] = y[i, :] * ENI_test[i]
-                        # P_observ_sp[i] = observ[i][0]
-                        P_pred_sp[i] = test_pred[i][0]
-                        error_sp[i] = observ[i].data.numpy() - P_pred_sp[i]
 
                     # compute Metrics
                     error = observ.data.numpy() - test_pred.data.numpy().squeeze()
+                    for n in range(0, batch_size):
+                        error_sp[n] = observ.data.numpy()[n] - Pdc_sp.numpy()[n]
 
                     test_batch_rmse = np.sqrt(np.nanmean(error ** 2, axis=0))
                     test_batch_rmse_sp = np.sqrt(np.nanmean(error_sp ** 2, axis=0))
@@ -193,20 +207,22 @@ def trainModel(model, batch_size, seq_dim, epochs):
                     test_mae.append(test_batch_mae)
                     test_mbe.append(test_batch_mbe)
 
-                    print('Epoch: {}, Iteration: {}, Train_RMSE: {}, Test_RMSE: {}, MAE: {}, MBE: {}'
-                          .format(epoch, iter, RMSE.data, np.mean(test_rmse), np.mean(test_mae),
+                    print('Epoch: {}, Iteration: {}, Train_RMSE: {}, RMSE_sp: {}, Test_RMSE: {}, MAE: {}, MBE: {}'
+                          .format(epoch, iter, RMSE.data, np.mean(test_rmse_sp), np.mean(test_rmse), np.mean(test_mae),
                                   np.mean(test_mbe)))
 
             RMSE.backward()  # computes derivative of loss
             optimizer.step()  # next step based on gradient
             iter += 1
 
+            #torch.save(model, PATH_save)
+
     # save results of one epoch and Model
     metric.insert(metric.shape[1], "MAE", value=test_mae)
     metric.insert(metric.shape[1], "MBE", value=test_mbe)
     metric.insert(metric.shape[1], "RMSE", value=test_rmse)
     metric.insert(metric.shape[1], "RMSE_sp", value=test_rmse_sp)
-    metric.to_csv("D:/TU_Stuttgart/Studienarbeit/LSTM_results/metricLSTM_layer_{}_Input_{}.csv".format(layer, X_train.shape[1]))
+    metric.to_csv("D:/TU_Stuttgart/Studienarbeit/LSTM_results/metricLSTM_layer_{}_Input_{}_hidden_{}.csv".format(layer, X_train.shape[1], hidden))
     torch.save(model, PATH_save)
 
     print('loss: ', RMSE.item())
@@ -215,23 +231,24 @@ def trainModel(model, batch_size, seq_dim, epochs):
 
 # START
 # define which Model to load or name Model to be initialized (layer = ...)
-layer = 2
 
 batch_size = 176 # ein Tag mit Nachtstunden
 seq_dim = 1
-epochs = 20
+layer = 10
+hidden = 100
+epochs = 50
 
 # _fillna_bignegative'.format(layer, X_train.shape[1])
-PATH_load = 'LSTM_Models/LSTM_Layer_{}_Input_{}'.format(layer, X_train.shape[1])
-PATH_save = 'LSTM_Models/LSTM_Layer_{}_Input_{}'.format(layer,X_train.shape[1])
+PATH_load = 'LSTM_Models/LSTM_Layer_{}_Input_{}_hidden_{}'.format(layer, X_train.shape[1], hidden)
+PATH_save = 'LSTM_Models/LSTM_Layer_{}_Input_{}_hidden_{}'.format(layer,X_train.shape[1], hidden)
 
 # True = load existing Model
 # False = initialize new Model !insert number to not overwrite existing Model!
-load_model = True
+load_model = False
 
 if load_model == False:
     # initialise Model and train IT
-    model = initializeNewModel(input_dim=X_train.shape[1], hidden_dim=100, layer_dim=layer, output_dim=37)
+    model = initializeNewModel(input_dim=X_train.shape[1], hidden_dim=hidden, layer_dim=layer, output_dim=36)
     print(model)
     test_loss, results = trainModel(model, batch_size, seq_dim, epochs)
     print("finished training")
