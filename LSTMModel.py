@@ -34,6 +34,8 @@ class LSTM(torch.nn.Module):
         # out[:, -1, :] --> 100, 100 --> just want last time step hidden states!
         out = self.fc(out[:, -1, :])
         # out.size() --> 100, 10
+        """print('The shape of lstm_out is:', out.shape)  # (batch_size, seq_len, hidden_dim)
+        print('The shape of h is:', h_n.shape)"""
         return out
 
     def loss(self, x, y):
