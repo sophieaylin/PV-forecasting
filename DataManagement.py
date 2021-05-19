@@ -15,13 +15,13 @@ def get_features (deep_copy = True):
     # Trainings features
 
     #GHI_kt = GHI.div(ENI.mul(np.sin(np.deg2rad(El))))
-    #gti_kt = gti30t187a_train.div(ENI_train)
-    BNI_kt = BNI_train.div(ENI_train)
+    gti_kt_train = gti30t187a_train.div(ENI_train)
+    BNI_kt_train = BNI_train.div(ENI_train)
 
-    B_BNI_kt_1 = BNI_kt
-    B_BNI_kt = BNI_kt
-    B_GHI_kt_1 = GHI_KT_train #  gti_kt
-    B_GHI_kt = GHI_KT_train  #  gti_kt
+    B_BNI_kt_1 = BNI_kt_train
+    B_BNI_kt = BNI_kt_train
+    B_GHI_kt_1 = GHI_KT_train #  gti_kt_train  GHI_KT_train
+    B_GHI_kt = GHI_KT_train  #  gti_kt_train  GHI_KT_train
 
     featuresB_GHI = pd.DataFrame()
     featuresB_BNI = pd.DataFrame()
@@ -66,13 +66,13 @@ def get_features (deep_copy = True):
 
     # Test features
 
-    #gti_kt = gti30t187a_test.div(ENI_test)
-    BNI_kt = BNI_test.div(ENI_test)
+    gti_kt_test = gti30t187a_test.div(ENI_test)
+    BNI_kt_test = BNI_test.div(ENI_test)
 
-    B_BNI_kt_1 = BNI_kt
-    B_BNI_kt = BNI_kt
-    B_GHI_kt_1 = GHI_KT_test  # gti_kt
-    B_GHI_kt = GHI_KT_test  # gti_kt
+    B_BNI_kt_1 = BNI_kt_test
+    B_BNI_kt = BNI_kt_test
+    B_GHI_kt_1 = GHI_KT_test  # gti_kt GHI_KT_test
+    B_GHI_kt = GHI_KT_test  # gti_kt GHI_KT_test
 
     featuresB_GHI = pd.DataFrame()
     featuresB_BNI = pd.DataFrame()
@@ -138,7 +138,7 @@ def get_target_Pdc (deep_copy = True):
 
     target_train = pd.concat([time_train, Pdc_shift, ENI_train, El_train, Pdc_train], axis=1)
     target_train.insert(target_train.shape[1], "dataset", "Train")
-    t_train = target_train[0:len(target_train) - window_tar] # +1? wegen dem Pdc_sp ? denk nicht
+    t_train = target_train[0:len(target_train) - window_tar]
 
     # Test target
 
@@ -159,6 +159,40 @@ def get_target_Pdc (deep_copy = True):
 
     return target.copy(deep_copy)
 
+def get_features_LSTM (deep_copy = True):
+
+    # Train
+
+    BNI_kt_train = BNI_train.div(ENI_train)
+    BNI_kt_train = pd.DataFrame(BNI_kt_train, columns=["BNI_kt"])
+
+    gti_kt_train = gti30t187a_train.div(ENI_train)
+    gti_kt_train = pd.DataFrame(gti_kt_train, columns=["gti_kt"])
+
+    features_train = pd.DataFrame()
+    features_train = pd.concat([time_train, GHI_train, BNI_train, GHI_KT_train, BNI_kt_train, gti_kt_train, Ta_train, TL_train, vw_train,
+                                AMa_train, RH_train, kd_train], axis=1)
+    features_train.insert(features_train.shape[1], "dataset", "Train")
+    ft_train = features_train[0:len(features_train) - window_LSTM]
+
+    # Test
+
+    BNI_kt_test = BNI_test.div(ENI_test)
+    BNI_kt_test = pd.DataFrame(BNI_kt_test, columns=["BNI_kt"])
+
+    gti_kt_test = gti30t187a_test.div(ENI_test)
+    gti_kt_test = pd.DataFrame(gti_kt_test, columns=["gti_kt"])
+
+    features_test = pd.DataFrame()
+    features_test = pd.concat([time_test, GHI_test, BNI_test, GHI_KT_test, BNI_kt_test, gti_kt_test, Ta_test, TL_test, vw_test,
+                               AMa_test, RH_test, kd_test], axis=1)
+    features_test.insert(features_test.shape[1], "dataset", "Test")
+    ft_test = features_test[0:len(features_test)-window_LSTM]
+
+    features = pd.concat([ft_train, ft_test], axis=0)
+
+    return features.copy(deep_copy)
+
 def get_target_LSTM(deep_copy = True):
     # for Output -> Y (Power)
     # Train target
@@ -166,34 +200,36 @@ def get_target_LSTM(deep_copy = True):
     # take the shortest backwards step as Smart Persistence Model (sp)
 
     Pdc_shift = pd.DataFrame()
-    Pdc_norm = Pdc_train.div(ENI_train)
+    Pdc_norm = Pdc_train.div(Pdc_train.max()) # ENI_train
     Pdc_sp = Pdc_train.shift(periods=1)
     Pdc_shift.insert(0, column='Pdc_sp', value=Pdc_sp)
 
-    for col in range(1, window_tar + 1):
-        Pdc_shift.insert(col, column='Pdc_{}min'.format(delta * (col)), value=Pdc_norm)
+    for col in range(1, window_LSTM + 1):
         Pdc_norm = Pdc_norm.shift(periods=-1)
+        Pdc_shift.insert(col, column='Pdc_{}min'.format(delta * (col)), value=Pdc_norm)
+
 
     target_train = pd.concat([time_train, Pdc_shift, ENI_train, El_train, Pdc_train], axis=1)
     target_train.insert(target_train.shape[1], "dataset", "Train")
-    t_train = target_train[0:len(target_train) - window_tar]
+    t_train = target_train[0:len(target_train) - window_LSTM]
 
     # Test target
 
     Pdc_shift = pd.DataFrame()
-    Pdc_norm = Pdc_test.div(ENI_test)
+    Pdc_norm = Pdc_test.div(Pdc_test.max()) # ENI_test
     Pdc_sp = Pdc_test.shift(periods=1)
     Pdc_shift.insert(0, column='Pdc_sp', value=Pdc_sp)
 
-    for col in range(1, window_tar + 1):
-        Pdc_shift.insert(col, column='Pdc_{}min'.format(delta * (col)), value=Pdc_norm)
+    for col in range(1, window_LSTM + 1):
         Pdc_norm = Pdc_norm.shift(periods=-1)
+        Pdc_shift.insert(col, column='Pdc_{}min'.format(delta * (col)), value=Pdc_norm)
 
     target_test = pd.concat([time_test, Pdc_shift, ENI_test, El_test, Pdc_test], axis=1)
     target_test.insert(target_test.shape[1], "dataset", "Test")
-    t_test = target_test[0:len(target_test) - window_tar]
+    t_test = target_test[0:len(target_test) - window_LSTM]
 
     target = pd.concat([t_train, t_test], axis=0)
+
     return target.copy(deep_copy)
 
 def get_target_Irr(deep_copy = True):
@@ -278,8 +314,9 @@ data = pd.read_csv(filename)
 data_min = data
 
 CAPACITY = 20808.66
-window_ft = 18 # time window for feature generation; LSTM (3-23) (6-41)
-window_tar = 6 # time window for forecast horizon !!!adjust horizon respectively in Regression.py!!!; 36 for LSTM
+window_ft = 23 # time window for feature generation;
+window_tar = 12 # time window for forecast horizon !!!adjust horizon respectively in Regression.py!!!
+window_LSTM = 36
 delta = 5  # step size [min]
 
 # Trainingsset: "big" year, "small" year / chronologically
@@ -302,13 +339,13 @@ for t in [first, second, third]:
      spring = pd.concat([spring, spr], axis=0)
      summer = pd.concat([summer, sum], axis=0)
 
-"""train = pd.concat([autumn[0:int(len(autumn) * 0.8)], winter[0:int(len(winter) * 0.8)],
+train = pd.concat([autumn[0:int(len(autumn) * 0.8)], winter[0:int(len(winter) * 0.8)],
                    spring[0:int(len(spring) * 0.8)], summer[0:int(len(summer) * 0.8)]], axis=0)
 
 test = pd.concat([autumn[int(len(autumn) * 0.8):len(autumn)], winter[int(len(winter) * 0.8):len(winter)],
-                  spring[int(len(spring) * 0.8):len(spring)], summer[int(len(summer) * 0.8):len(summer)]], axis=0)"""
+                  spring[int(len(spring) * 0.8):len(spring)], summer[int(len(summer) * 0.8):len(summer)]], axis=0)
 
-train, test = data_min[0:round(len(data_min)*0.8)], data_min[round(len(data_min)*0.8):len(data_min)]
+"""train, test = data_min[0:round(len(data_min)*0.8)], data_min[round(len(data_min)*0.8):len(data_min)]"""
 
 # time dependent Variables
 time_train, time_test = train.t, test.t
@@ -324,10 +361,13 @@ Pdcmean_train, Pdcmean_test = train.iloc[:, 109:].mean(axis=1), test.iloc[:, 109
 Pdcmean_train = pd.Series(Pdcmean_train, name="Pdcmean")
 Pdcmean_test = pd.Series(Pdcmean_test, name="Pdcmean")
 GHI_KT_train, GHI_KT_test = train.kt, test.kt
+RH_train, RH_test = train.RH, test.RH   # relative humidity
+tpw_train, twp_test = train.tpw, test.tpw   # total precipitable water [mm]
+kd_train, kd_test = train.kd, test. kd  # diffuse fraction kd=DHI/GHI
 
 # time independent Variables (almost constant)
-TL_train, TL_test = train.TL, test.TL
-Ta_train, Ta_test = train.Ta, test.Ta
+TL_train, TL_test = train.TL, test.TL   # modeled link turbity
+Ta_train, Ta_test = train.Ta, test.Ta   # vw speed
 vw_train, vw_test = train.vw, test.vw
 AMa_train, AMa_test = train.AMa, test.AMa
 
