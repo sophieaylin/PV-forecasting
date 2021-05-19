@@ -1,3 +1,44 @@
+# MHA: Consider turning this module into a class with a constructor that takes as arguments all of your currently
+# hard-coded parameters. That way you don't have to worry about the consistency of these constants with your other
+# scripts. You create (there) an instance of the class with the proper parameters, and call the object methods.
+# Something like:
+#
+# class DataManager:
+#     filename = 'Daten/PVAMM_201911-202011_PT5M_merged.csv'
+#
+#     CAPACITY = 20808.66
+#     window_ft = 23  # time window for feature generation;
+#     window_tar = 12  # time window for forecast horizon !!!adjust horizon respectively in Regression.py!!!
+#     window_LSTM = 36
+#     delta = 5  # step size [min]
+#
+#     # parameterized constructor
+#     def __init__(self, filename,CAPACITY, window_ft,window_tar,window_LSTM,delta,...):
+#         ...
+#
+#     def get_features_LSTM(self):
+#         ...
+#
+# If e.g. window_ft for get_features_LSTM is not necessarily the same as window_ft for get_features,
+# then don't make them properties of the class, but arguments for the individual methods
+#
+# To keep your code portable and reusable (for other, even slightly different data sets, or to quickly test other
+# predictors), you should also try to avoid hard-coded data-column names. Your class constructor (or your methods)
+# could take lists of 'feature' and 'target' column names, and just return dataframe slices using those lists, i.e.
+# something like:
+#
+#   features_train = train[list_of_feature_variables]
+#   target_train = train[list_of_target_variables]
+#
+# instead of your current:
+#
+#   GHI_train, GHI_test = train.GHI, test.GHI
+#   BNI_train, BNI_test = train.BNI, test.BNI
+#   ...
+#   features_train = pd.concat([.., GHI_train, BNI_train, ..])
+#   features_test = pd.concat([..,GHI_test,BNI_test,..])
+
+
 import pandas as pd
 import numpy as np
 import itertools as it
@@ -160,6 +201,7 @@ def get_target_Pdc (deep_copy = True):
     return target.copy(deep_copy)
 
 def get_features_LSTM (deep_copy = True):
+# MHA: maybe this function could take as an argument the name of the feature variable(s)?
 
     # Train
 
@@ -194,12 +236,17 @@ def get_features_LSTM (deep_copy = True):
     return features.copy(deep_copy)
 
 def get_target_LSTM(deep_copy = True):
+# MHA: the same, this could take as argument the name of the target variable(s), and maybe a normalizing value
+
     # for Output -> Y (Power)
     # Train target
     # for LSTM Input for time t: x(t), y(t) in one row
     # take the shortest backwards step as Smart Persistence Model (sp)
 
     Pdc_shift = pd.DataFrame()
+
+    # MHA: this seems dangerous: you might have an outlier value that is, say 1000 times larger that everything else,
+    # and you will normalize to that value. You have a CAPACITY variable below, why are you not using it?
     Pdc_norm = Pdc_train.div(Pdc_train.max()) # ENI_train
     Pdc_sp = Pdc_train.shift(periods=1)
     Pdc_shift.insert(0, column='Pdc_sp', value=Pdc_sp)
@@ -216,7 +263,7 @@ def get_target_LSTM(deep_copy = True):
     # Test target
 
     Pdc_shift = pd.DataFrame()
-    Pdc_norm = Pdc_test.div(Pdc_test.max()) # ENI_test
+    Pdc_norm = Pdc_test.div(Pdc_test.max()) # ENI_test  #MHA: same as above
     Pdc_sp = Pdc_test.shift(periods=1)
     Pdc_shift.insert(0, column='Pdc_sp', value=Pdc_sp)
 
@@ -308,7 +355,7 @@ def get_target_Irr(deep_copy = True):
 
     return target.copy(deep_copy)
 
-
+# MHA: see comment on top (§)
 filename = 'Daten/PVAMM_201911-202011_PT5M_merged.csv'
 data = pd.read_csv(filename)
 data_min = data
@@ -319,31 +366,46 @@ window_tar = 12 # time window for forecast horizon !!!adjust horizon respectivel
 window_LSTM = 36
 delta = 5  # step size [min]
 
+# MHA: I still don't see the need to shuffle the data around. You could keep everything sorted
+# (and make your code a bit clearer) with something like:
+train = pd.DataFrame()
+test = pd.DataFrame()
+t = pd.to_datetime(data["t"]).array
+month_number = t.month
+for m in range(1,13):
+    in_month_m = month_number == m
+    this_month = data.iloc[in_month_m, :]
+    # splitting by day number ensures you have whole days on each data set
+    day_number = t[in_month_m].day
+    in_training_set = day_number < np.percentile(day_number,80)
+    train = pd.concat([train, this_month.iloc[in_training_set, :]], axis=0)
+    test = pd.concat([test, this_month.iloc[~in_training_set, :]], axis=0)
+
 # Trainingsset: "big" year, "small" year / chronologically
 
-first = ["Sep", "Dec", "Mar", "Jun"]
-second = ["Oct", "Jan", "Apr", "Jul"]
-third = ["Nov", "Feb", "May", "Aug"] # 2019 und 2020
-autumn = pd.DataFrame()
-winter = pd.DataFrame()
-spring = pd.DataFrame()
-summer = pd.DataFrame()
-
-for t in [first, second, third]:
-     aut = data_min[data_min.t.str.contains(t[0])]
-     win = data_min[data_min.t.str.contains(t[1])]
-     spr = data_min[data_min.t.str.contains(t[2])]
-     sum = data_min[data_min.t.str.contains(t[3])]
-     autumn = pd.concat([autumn, aut], axis=0)
-     winter = pd.concat([winter, win], axis=0)
-     spring = pd.concat([spring, spr], axis=0)
-     summer = pd.concat([summer, sum], axis=0)
-
-train = pd.concat([autumn[0:int(len(autumn) * 0.8)], winter[0:int(len(winter) * 0.8)],
-                   spring[0:int(len(spring) * 0.8)], summer[0:int(len(summer) * 0.8)]], axis=0)
-
-test = pd.concat([autumn[int(len(autumn) * 0.8):len(autumn)], winter[int(len(winter) * 0.8):len(winter)],
-                  spring[int(len(spring) * 0.8):len(spring)], summer[int(len(summer) * 0.8):len(summer)]], axis=0)
+# first = ["Sep", "Dec", "Mar", "Jun"]
+# second = ["Oct", "Jan", "Apr", "Jul"]
+# third = ["Nov", "Feb", "May", "Aug"] # 2019 und 2020
+# autumn = pd.DataFrame()
+# winter = pd.DataFrame()
+# spring = pd.DataFrame()
+# summer = pd.DataFrame()
+#
+# for t in [first, second, third]:
+#      aut = data_min[data_min.t.str.contains(t[0])]
+#      win = data_min[data_min.t.str.contains(t[1])]
+#      spr = data_min[data_min.t.str.contains(t[2])]
+#      sum = data_min[data_min.t.str.contains(t[3])]
+#      autumn = pd.concat([autumn, aut], axis=0)
+#      winter = pd.concat([winter, win], axis=0)
+#      spring = pd.concat([spring, spr], axis=0)
+#      summer = pd.concat([summer, sum], axis=0)
+#
+# train = pd.concat([autumn[0:int(len(autumn) * 0.8)], winter[0:int(len(winter) * 0.8)],
+#                    spring[0:int(len(spring) * 0.8)], summer[0:int(len(summer) * 0.8)]], axis=0)
+#
+# test = pd.concat([autumn[int(len(autumn) * 0.8):len(autumn)], winter[int(len(winter) * 0.8):len(winter)],
+#                   spring[int(len(spring) * 0.8):len(spring)], summer[int(len(summer) * 0.8):len(summer)]], axis=0)
 
 """train, test = data_min[0:round(len(data_min)*0.8)], data_min[round(len(data_min)*0.8):len(data_min)]"""
 

@@ -1,3 +1,7 @@
+# MHA: Consider including an environment.yml file in the repository, to make sure we are both using the same versions
+# of python and its modules:
+# https://conda.io/projects/conda/en/latest/user-guide/tasks/manage-environments.html
+# https://www.jetbrains.com/help/pycharm/conda-support-creating-conda-virtual-environment.html#conda-requirements
 import numpy as np
 import torch
 import os
@@ -13,15 +17,19 @@ from torch.autograd import Variable
 from DataManagement import get_features, get_target_LSTM, get_features_LSTM
 from treatNaNs import IndicatorNaN, split_sequences
 
+# MHA: see comment on DataManagement.py, you are setting yourself up for errors ---
 # BEFORE RUN:
 # check window_tar of DataManagement.py, window_tar has to be 36 for Ouput 36
 # check if seasonal or chronological Dataset is choosen
 # check Model parameters below (layer, Inputs, model_load, hidden, treatnans, batch size, epochs, optimizer, ...)
+# ---
 
 # Trainings- /Test Set
 
 features = get_features_LSTM()
 target = get_target_LSTM() # includes Trainings and Test data of target
+
+# MHA: The need for this 'key' still escapes me, why not merge by time or original row ID?
 features.insert(features.shape[1], column="key", value = np.array(range(0,len(features))))
 target.insert(target.shape[1], column="key", value = np.array(range(0,len(target))))
 tar = target.drop('t', axis=1)
@@ -42,10 +50,14 @@ test.index = pd.to_datetime(test["t"])
 # train = train.between_time("04:00:00", "22:00:00") # mehr Nachtstunden einbeziehen, "05:35:00", "20:05:00"
 # test = test.between_time("04:00:00", "22:00:00")
 
+# MHA: You should try to make this module completely blind to the variable names in the data set. ----
+# move these lines to DataManagement.py, and let get_features_LSTM and get_target_LSTM give you the already
+# "clean" train_X, train_Y, test_X, and test_Y
 train_X = train[["GHI"] + ["BNI"] + ["Ta"] + ["TL"]] # + ["kd"] + ["kt"] + ["BNI_kt"] + ["TL"] + ["vw"] + ["AMa"]
 test_X = test[["GHI"] + ["BNI"] + ["Ta"] + ["TL"]]
 train_Y, train_ENI, Pdc_sp_train, train_denorm = train[["Pdc_5min"]], train[["ENI"]], train[["Pdc_sp"]], train[["Pdc_33"]].max()
 test_Y, test_ENI, Pdc_sp_test, test_denorm = test[["Pdc_5min"]], test[["ENI"]], test[["Pdc_sp"]], test[["Pdc_33"]].max()
+# ----
 
 # nan values
 train_X = train_X.fillna(value=0) # train_X = train_X.fillna(value=0), train_X = train_X.fillna(value=-100000)
@@ -72,12 +84,14 @@ scaler.fit(train_X)
 train_X = scaler.transform(train_X)
 test_X = scaler.transform(test_X)
 
+# MHA: see comments above -----
 # define forecast window and target window for Input shape
 seq_dim = 60
 window_tar = 36
 
 train_ENI = train_ENI.fillna(method="ffill")
 test_ENI = test_ENI.fillna(method="ffill")
+# -----
 traindata_stacked = np.hstack((train_X, train_Y, train_ENI))
 testdata_stacked = np.hstack((test_X, test_Y, test_ENI))
 X, Y, train_ENI = split_sequences(traindata_stacked, seq_dim, window_tar)
