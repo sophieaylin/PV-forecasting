@@ -41,4 +41,3 @@ def split_sequences(sequences, n_steps_in, n_steps_out):
     return np.array(X), np.array(y), np.array(ENI)
 
 
-
