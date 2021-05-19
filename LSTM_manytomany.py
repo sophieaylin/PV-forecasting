@@ -39,18 +39,13 @@ test = test_x.merge(test_y, on="key")
 
 train.index = pd.to_datetime(train["t"])
 test.index = pd.to_datetime(test["t"])
-train = train.between_time("05:35:00", "20:05:00")
-test = test.between_time("05:35:00", "20:05:00")
+# train = train.between_time("04:00:00", "22:00:00") # mehr Nachtstunden einbeziehen, "05:35:00", "20:05:00"
+# test = test.between_time("04:00:00", "22:00:00")
 
-feature_cols_G = features.filter(regex="GHI").columns.tolist()
-feature_cols_B = features.filter(regex="BNI").columns.tolist()
-feature_cols = feature_cols_G + feature_cols_B
-tar_cols = target.filter(regex="Pdc_5min").columns.tolist() #
-
-train_X = train[["gti_kt"] + ["BNI_kt"] + ["kd"] + ["RH"]]
-test_X = test[["gti_kt"] + ["BNI_kt"] + ["kd"] + ["RH"]]
-train_Y, train_ENI, Pdc_sp_train = train[tar_cols], train[["ENI"]], train[["Pdc_sp"]]
-test_Y, test_ENI, Pdc_sp_test = test[tar_cols], test[["ENI"]], test[["Pdc_sp"]]
+train_X = train[["GHI"] + ["BNI"] + ["Ta"] + ["TL"]] # + ["kd"] + ["kt"] + ["BNI_kt"] + ["TL"] + ["vw"] + ["AMa"]
+test_X = test[["GHI"] + ["BNI"] + ["Ta"] + ["TL"]]
+train_Y, train_ENI, Pdc_sp_train, train_denorm = train[["Pdc_5min"]], train[["ENI"]], train[["Pdc_sp"]], train[["Pdc_33"]].max()
+test_Y, test_ENI, Pdc_sp_test, test_denorm = test[["Pdc_5min"]], test[["ENI"]], test[["Pdc_sp"]], test[["Pdc_33"]].max()
 
 # nan values
 train_X = train_X.fillna(value=0) # train_X = train_X.fillna(value=0), train_X = train_X.fillna(value=-100000)
@@ -58,19 +53,7 @@ test_X = test_X.fillna(value=0)
 train_Y = train_Y.fillna(value=0)
 
 # Indicator on missing values
-
 """train_X, test_X, train_Y = IndicatorNaN(train_X, test_X, train_Y)"""
-
-# multiple Imputation
-"""train_X_V1 = train_X.fillna(value=random())
-test_X_V1 = train_X.fillna(value=random())
-train_X_V2 = train_X.fillna(value=random())
-test_X_V2 = train_X.fillna(value=random())
-train_X_V3 = train_X.fillna(value=random())
-test_X_V3 = train_X.fillna(value=random())
-
-train_X = pd.concat([train_X_V1, train_X_V2, train_X_V3], axis=1)
-test_X = pd.concat([test_X_V1, test_X_V2, test_X_V3], axis=1)"""
 
 # numpy.ndarray
 train_X = train_X.values
@@ -84,15 +67,17 @@ scaler.fit(train_X)
 train_X = scaler.transform(train_X)
 test_X = scaler.transform(test_X)"""
 
-"""scaler = MinMaxScaler(feature_range=(0, 1))
+scaler = MinMaxScaler(feature_range=(0, 1))
 scaler.fit(train_X)
 train_X = scaler.transform(train_X)
-test_X = scaler.transform(test_X)"""
+test_X = scaler.transform(test_X)
 
 # define forecast window and target window for Input shape
 seq_dim = 60
 window_tar = 36
 
+train_ENI = train_ENI.fillna(method="ffill")
+test_ENI = test_ENI.fillna(method="ffill")
 traindata_stacked = np.hstack((train_X, train_Y, train_ENI))
 testdata_stacked = np.hstack((test_X, test_Y, test_ENI))
 X, Y, train_ENI = split_sequences(traindata_stacked, seq_dim, window_tar)
@@ -120,7 +105,7 @@ def initializeNewModel(input_dim, hidden_dim, layer_dim, output_dim):
 
 def trainModel(model, batch_size, seq_dim, epochs):
 
-    optimizer = torch.optim.Adam(model.parameters(), lr=1e-5) # 1e-5
+    optimizer = torch.optim.Adam(model.parameters(), lr=1e-5)
     # SGD(model.parameters(), lr=1e-4, momentum=0.9)
     # Adam(model.parameters(), lr=1e-3)
     # Adagrad(model.parameters(), lr=1e-3)
@@ -147,28 +132,18 @@ def trainModel(model, batch_size, seq_dim, epochs):
 
             y_pred = model(train_load)
 
-            # plot prediction
-            # P[horizon] -> 0 == +5min, 1 == +10min ...
-            """if step == int(len(X_train)/batch_size):
-                P = y.transpose(0,1)
-                P_pred = y_pred.transpose(0, 1)
-                plt.figure()
-                plt.plot(P[0])
-                plt.plot(P_pred[0].detach())
-                fig.savefig"""
-
             # Denormalize
-            train_ENI = ENI_train[step * batch_size:(step + 1) * batch_size]
-            train_pred = y_pred * train_ENI
-            observ = y * train_ENI
+            """train_ENI = ENI_train[step * batch_size:(step + 1) * batch_size]
+            train_pred = y_pred * train_ENI # y_pred.detach() * train_denorm
+            observ = y * train_ENI # y.detach() * train_denorm"""
 
             # compute loss: criterion RMSE
-            RMSE = model.loss(train_pred, observ) # train_pred, observ y_pred, y
+            RMSE = model.loss(y_pred, y) # train_pred, observ y_pred, y
 
             train_loss.append(RMSE.data)
 
             if iter % 100 == 99:
-                test_len = 100
+                test_len = 455
 
                 rmse = []
                 mae = []
@@ -182,13 +157,24 @@ def trainModel(model, batch_size, seq_dim, epochs):
                     y = y_test[step * batch_size:(step + 1) * batch_size]
 
                     # for Denormalization
-                    test_ENI = ENI_test[step * batch_size:(step + 1) * batch_size]
+                    # test_ENI = ENI_test[step * batch_size:(step + 1) * batch_size]
 
                     y_pred = model(test_load)
 
                     # Denormalize
-                    test_pred = y_pred * test_ENI
-                    observ = y * test_ENI
+                    test_pred = y_pred.detach() * test_denorm.values # test_ENI
+                    observ = y * test_denorm.values # test_ENI
+
+                    # plot prediction
+                    # P[horizon] -> 0 == +5min, 1 == +10min ...
+
+                    """if step == int(len(X_test)/batch_size): # & epoch == epochs - 1
+                        P = y.transpose(0,1)
+                        P_pred = y_pred.transpose(0, 1)
+                        fig = plt.figure()
+                        fig = plt.plot(P[0])
+                        fig = plt.plot(P_pred[0].detach())
+                        plt.savefig(PATH_fig)"""
 
                     # compute Metrics
                     error = observ.data.numpy() - test_pred.data.numpy() # .squeeze()
@@ -225,16 +211,17 @@ def trainModel(model, batch_size, seq_dim, epochs):
 # START
 # define which Model to load or name Model to be initialized (layer = ...)
 
-batch_size = 30 # ein Tag mit Nachtstunden 176
+batch_size = 30
 layer = 2
 hidden = 100
-epochs = 20
+epochs = 70
 
 # CHECK if train/test Set seasonal or chronological
-PATH_load = 'LSTM_Models/LSTM_m2m_Layer_{}_Input_{}_hidden_{}_0_seas_gtiBNIRHkd_sc'.format(layer, X_train.shape[2], hidden)
-PATH_save = 'LSTM_Models/LSTM_m2m_Layer_{}_Input_{}_hidden_{}_0_seas_gtiBNIRHkd_sc'.format(layer,X_train.shape[2], hidden)
-PATH_save_met = "D:/TU_Stuttgart/Studienarbeit/LSTM_results/metricLSTM_m2m_layer_{}_Input_{}_hidden_{}_0_seas_gtiBNIRHkd_sc.csv"\
+PATH_load = 'LSTM_Models/LSTM_m2m_Layer_{}_Input_{}_hidden_{}_0_seas_shift_night_denorm_minmax'.format(layer, X_train.shape[2], hidden)
+PATH_save = 'LSTM_Models/LSTM_m2m_Layer_{}_Input_{}_hidden_{}_0_seas_shift_night_denorm_minmax'.format(layer,X_train.shape[2], hidden)
+PATH_save_met = "D:/TU_Stuttgart/Studienarbeit/LSTM_results/metricLSTM_m2m_layer_{}_Input_{}_hidden_{}_0_seas_shift_night_denorm_minmax.csv"\
     .format(layer, X_train.shape[2], hidden)
+PATH_fig = 'D:/TU_Stuttgart/Studienarbeit/LSTM_results/figure'
 # "/zhome/academic/HLRS/hlrs/hpcsayli/run/LSTM_results/metricLSTM_layer_{}_Input_{}_hidden_{}.csv"
 
 # Models
@@ -248,7 +235,7 @@ PATH_save_met = "D:/TU_Stuttgart/Studienarbeit/LSTM_results/metricLSTM_m2m_layer
 
 # True = load existing Model
 # False = initialize new Model !insert number to not overwrite existing Model!
-load_model = True
+load_model = False
 
 if load_model == False:
     # initialise Model and train IT
@@ -264,3 +251,19 @@ else:
     test_loss = trainModel(model, batch_size, seq_dim, epochs)
     print("finished training")
     print("trained Model: {}".format(model))
+
+
+
+# multiple Imputation
+"""train_X_V1 = train_X.fillna(value=random())
+test_X_V1 = train_X.fillna(value=random())
+train_X_V2 = train_X.fillna(value=random())
+test_X_V2 = train_X.fillna(value=random())
+train_X_V3 = train_X.fillna(value=random())
+test_X_V3 = train_X.fillna(value=random())
+
+train_X = pd.concat([train_X_V1, train_X_V2, train_X_V3], axis=1)
+test_X = pd.concat([test_X_V1, test_X_V2, test_X_V3], axis=1)
+
+rng = np.arange(start=train["kt"].min(), stop=train["kt"].max())
+train["kt"].hist(bin=rng.values)"""
