@@ -7,10 +7,10 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import datetime
 import LSTMModel
+import treatNaNs
 from random import random
 from sklearn.preprocessing import StandardScaler, MinMaxScaler
-from torch.autograd import Variable
-from DataManagement import get_features, get_target_LSTM, get_features_LSTM
+from DataManagement import DataManager # get_features, get_target_LSTM, get_features_LSTM
 from treatNaNs import IndicatorNaN, split_sequences
 
 # BEFORE RUN:
@@ -20,37 +20,25 @@ from treatNaNs import IndicatorNaN, split_sequences
 
 # Trainings- /Test Set
 
-features = get_features_LSTM()
-target = get_target_LSTM() # includes Trainings and Test data of target
-features.insert(features.shape[1], column="key", value = np.array(range(0,len(features))))
-target.insert(target.shape[1], column="key", value = np.array(range(0,len(target))))
-tar = target.drop('t', axis=1)
+feature_str = ["GHI", "BNI", "Ta", "El", "Az"]
+window_LSTM = 36
+seq_dim = 60
+feat = DataManager()
+train_X, test_X = feat.get_features_LSTM(window_LSTM, feature_str)
+train_Y, test_Y = feat.get_target_LSTM(window_LSTM)
 
-train_x = features[features["dataset"] == "Train"]
-test_x = features[features["dataset"] == "Test"]
-train_y = tar[tar["dataset"] == "Train"]
-test_y = tar[tar["dataset"] == "Test"]
-
-train_y = train_y.drop('dataset', axis=1)
-test_y = test_y.drop('dataset', axis=1)
-
-train = train_x.merge(train_y, on="key")
-test = test_x.merge(test_y, on="key")
-
-train.index = pd.to_datetime(train["t"])
+"""train.index = pd.to_datetime(train["t"])
 test.index = pd.to_datetime(test["t"])
 # train = train.between_time("04:00:00", "22:00:00") # mehr Nachtstunden einbeziehen, "05:35:00", "20:05:00"
-# test = test.between_time("04:00:00", "22:00:00")
+# test = test.between_time("04:00:00", "22:00:00")"""
 
-train_X = train[["GHI"] + ["BNI"] + ["Ta"] + ["TL"]] # + ["kd"] + ["kt"] + ["BNI_kt"] + ["TL"] + ["vw"] + ["AMa"]
-test_X = test[["GHI"] + ["BNI"] + ["Ta"] + ["TL"]]
-train_Y, train_ENI, Pdc_sp_train, train_denorm = train[["Pdc_5min"]], train[["ENI"]], train[["Pdc_sp"]], train[["Pdc_33"]].max()
-test_Y, test_ENI, Pdc_sp_test, test_denorm = test[["Pdc_5min"]], test[["ENI"]], test[["Pdc_sp"]], test[["Pdc_33"]].max()
+train_y, train_ENI, Pdc_sp_train = train_Y["Pdc_5min"], train_Y["ENI"], train_Y["Pdc_sp"]
+test_y, test_ENI, Pdc_sp_test = test_Y[["Pdc_5min"]], test_Y[["ENI"]], test_Y[["Pdc_sp"]]
 
 # nan values
 train_X = train_X.fillna(value=0) # train_X = train_X.fillna(value=0), train_X = train_X.fillna(value=-100000)
 test_X = test_X.fillna(value=0)
-train_Y = train_Y.fillna(value=0)
+train_y = train_Y.fillna(value=0)
 
 # Indicator on missing values
 """train_X, test_X, train_Y = IndicatorNaN(train_X, test_X, train_Y)"""
@@ -72,22 +60,18 @@ scaler.fit(train_X)
 train_X = scaler.transform(train_X)
 test_X = scaler.transform(test_X)
 
-# define forecast window and target window for Input shape
-seq_dim = 60
-window_tar = 36
-
-train_ENI = train_ENI.fillna(method="ffill")
-test_ENI = test_ENI.fillna(method="ffill")
-traindata_stacked = np.hstack((train_X, train_Y, train_ENI))
-testdata_stacked = np.hstack((test_X, test_Y, test_ENI))
-X, Y, train_ENI = split_sequences(traindata_stacked, seq_dim, window_tar)
-test_X, test_Y, test_ENI = split_sequences(testdata_stacked, seq_dim, window_tar)
+"""train_ENI = train_ENI.fillna(method="ffill")
+test_ENI = test_ENI.fillna(method="ffill")"""
+traindata_stacked = np.hstack((train_X, train_y, train_ENI))
+testdata_stacked = np.hstack((test_X, test_y, test_ENI))
+X, Y, train_ENI = split_sequences(traindata_stacked, seq_dim, window_LSTM)
+test_X, Y_test, test_ENI = split_sequences(testdata_stacked, seq_dim, window_LSTM)
 
 # to torch
 X_train = torch.from_numpy(X).float()
 X_test = torch.from_numpy(test_X).float()
 y_train = torch.from_numpy(Y).float()
-y_test = torch.from_numpy(test_Y).float()
+y_test = torch.from_numpy(Y_test).float()
 ENI_train = torch.from_numpy(train_ENI).float()
 ENI_test = torch.from_numpy(test_ENI).float()
 
@@ -120,6 +104,7 @@ def trainModel(model, batch_size, seq_dim, epochs):
     test_mbe = []
 
     metric = pd.DataFrame()
+    result = pd.DataFrame()
 
     for epoch in range(epochs):
         # one epoch = one time through dataset
@@ -134,8 +119,8 @@ def trainModel(model, batch_size, seq_dim, epochs):
 
             # Denormalize
             """train_ENI = ENI_train[step * batch_size:(step + 1) * batch_size]
-            train_pred = y_pred * train_ENI # y_pred.detach() * train_denorm
-            observ = y * train_ENI # y.detach() * train_denorm"""
+            train_pred = y_pred * train_ENI # y_pred.detach() * feat.CAPACITY
+            observ = y * train_ENI # y.detach() * feat.CAPACITY"""
 
             # compute loss: criterion RMSE
             RMSE = model.loss(y_pred, y) # train_pred, observ y_pred, y
@@ -162,19 +147,22 @@ def trainModel(model, batch_size, seq_dim, epochs):
                     y_pred = model(test_load)
 
                     # Denormalize
-                    test_pred = y_pred.detach() * test_denorm.values # test_ENI
-                    observ = y * test_denorm.values # test_ENI
+                    test_pred = y_pred.detach() * feat.CAPACITY # test_ENI
+                    observ = y * feat.CAPACITY # test_ENI
 
                     # plot prediction
                     # P[horizon] -> 0 == +5min, 1 == +10min ...
 
-                    """if step == int(len(X_test)/batch_size): # & epoch == epochs - 1
+                    """if step == 455 and epoch == epochs - 1:
                         P = y.transpose(0,1)
                         P_pred = y_pred.transpose(0, 1)
                         fig = plt.figure()
                         fig = plt.plot(P[0])
                         fig = plt.plot(P_pred[0].detach())
-                        plt.savefig(PATH_fig)"""
+                        plt.savefig(PATH_fig)
+
+                        y_pred_all = model(X_test)
+                        # result = pd.DataFrame(y_pred_all.detach())"""
 
                     # compute Metrics
                     error = observ.data.numpy() - test_pred.data.numpy() # .squeeze()
@@ -202,25 +190,27 @@ def trainModel(model, batch_size, seq_dim, epochs):
     metric.insert(metric.shape[1], "MBE", value=mbe)
     metric.insert(metric.shape[1], "RMSE", value=rmse)
     metric.to_csv(PATH_save_met)
+    result.to_csv(PATH_save_res)
     torch.save(model, PATH_save)
 
     print('loss: ', RMSE.item())
 
-    return metric
+    return metric, result
 
 # START
 # define which Model to load or name Model to be initialized (layer = ...)
 
-batch_size = 30
+batch_size = 10 # 10
 layer = 2
-hidden = 100
-epochs = 70
+hidden = 200
+epochs = 5
 
 # CHECK if train/test Set seasonal or chronological
-PATH_load = 'LSTM_Models/LSTM_m2m_Layer_{}_Input_{}_hidden_{}_0_seas_shift_night_denorm_minmax'.format(layer, X_train.shape[2], hidden)
-PATH_save = 'LSTM_Models/LSTM_m2m_Layer_{}_Input_{}_hidden_{}_0_seas_shift_night_denorm_minmax'.format(layer,X_train.shape[2], hidden)
-PATH_save_met = "D:/TU_Stuttgart/Studienarbeit/LSTM_results/metricLSTM_m2m_layer_{}_Input_{}_hidden_{}_0_seas_shift_night_denorm_minmax.csv"\
-    .format(layer, X_train.shape[2], hidden)
+file = "LSTM_m2m_Layer_{}_Input_{}_hidden_{}_0_shift_denorm_minmax_El_Az".format(layer, X_train.shape[2], hidden)
+PATH_load = 'LSTM_Models/{}'.format(file)
+PATH_save = 'LSTM_Models/{}'.format(file)
+PATH_save_met = "D:/TU_Stuttgart/Studienarbeit/LSTM_results/{}.csv".format(file)
+PATH_save_res = "LSTM_Models/{}.csv".format(file)
 PATH_fig = 'D:/TU_Stuttgart/Studienarbeit/LSTM_results/figure'
 # "/zhome/academic/HLRS/hlrs/hpcsayli/run/LSTM_results/metricLSTM_layer_{}_Input_{}_hidden_{}.csv"
 
@@ -266,4 +256,17 @@ train_X = pd.concat([train_X_V1, train_X_V2, train_X_V3], axis=1)
 test_X = pd.concat([test_X_V1, test_X_V2, test_X_V3], axis=1)
 
 rng = np.arange(start=train["kt"].min(), stop=train["kt"].max())
-train["kt"].hist(bin=rng.values)"""
+train["kt"].hist(bin=rng.values)
+
+Gründe für schlechte Konvergenz:
+Batchsize - 1
+Opitmizer
+lr - 
+hidden - 150
+Daten
+
+TO DO:
+
+dropout layer
+Martins comments
+change Variables"""
