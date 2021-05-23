@@ -32,13 +32,13 @@ test.index = pd.to_datetime(test["t"])
 # train = train.between_time("04:00:00", "22:00:00") # mehr Nachtstunden einbeziehen, "05:35:00", "20:05:00"
 # test = test.between_time("04:00:00", "22:00:00")"""
 
-train_y, train_ENI, Pdc_sp_train = train_Y["Pdc_5min"], train_Y["ENI"], train_Y["Pdc_sp"]
+train_y, train_ENI, Pdc_sp_train = train_Y[["Pdc_5min"]], train_Y[["ENI"]], train_Y[["Pdc_sp"]]
 test_y, test_ENI, Pdc_sp_test = test_Y[["Pdc_5min"]], test_Y[["ENI"]], test_Y[["Pdc_sp"]]
 
 # nan values
 train_X = train_X.fillna(value=0) # train_X = train_X.fillna(value=0), train_X = train_X.fillna(value=-100000)
 test_X = test_X.fillna(value=0)
-train_y = train_Y.fillna(value=0)
+train_y = train_y.fillna(value=0)
 
 # Indicator on missing values
 """train_X, test_X, train_Y = IndicatorNaN(train_X, test_X, train_Y)"""
@@ -46,8 +46,8 @@ train_y = train_Y.fillna(value=0)
 # numpy.ndarray
 train_X = train_X.values
 test_X = test_X.values
-train_Y = train_Y.values
-test_Y = test_Y.values
+train_y = train_y.values
+test_y = test_y.values
 
 # Scaler !oder MinMaxScaler: auch y gescaled!
 """scaler = StandardScaler()
@@ -202,7 +202,7 @@ def trainModel(model, batch_size, seq_dim, epochs):
 
 batch_size = 10 # 10
 layer = 2
-hidden = 200
+hidden = 75
 epochs = 5
 
 # CHECK if train/test Set seasonal or chronological
@@ -269,4 +269,6 @@ TO DO:
 
 dropout layer
 Martins comments
-change Variables"""
+change Variables
+
+Die Anwendung von 2 layer ist durch die Funktion des ersten layers als Filter für den zweiten begründet"""
