@@ -62,16 +62,18 @@ test_X = scaler.transform(test_X)
 
 """train_ENI = train_ENI.fillna(method="ffill")
 test_ENI = test_ENI.fillna(method="ffill")"""
-traindata_stacked = np.hstack((train_X, train_y, train_ENI))
-testdata_stacked = np.hstack((test_X, test_y, test_ENI))
-X, Y, train_ENI = split_sequences(traindata_stacked, seq_dim, window_LSTM)
-test_X, Y_test, test_ENI = split_sequences(testdata_stacked, seq_dim, window_LSTM)
+traindata_stacked = np.hstack((train_X, train_y, Pdc_sp_train, train_ENI))
+testdata_stacked = np.hstack((test_X, test_y, Pdc_sp_test, test_ENI))
+X, Y, train_sp, train_ENI = split_sequences(traindata_stacked, seq_dim, window_LSTM)
+test_X, Y_test, test_sp, test_ENI = split_sequences(testdata_stacked, seq_dim, window_LSTM)
 
 # to torch
 X_train = torch.from_numpy(X).float()
 X_test = torch.from_numpy(test_X).float()
 y_train = torch.from_numpy(Y).float()
 y_test = torch.from_numpy(Y_test).float()
+sp_train = torch.from_numpy(train_sp).float()
+sp_test = torch.from_numpy(test_sp).float()
 ENI_train = torch.from_numpy(train_ENI).float()
 ENI_test = torch.from_numpy(test_ENI).float()
 
@@ -89,7 +91,7 @@ def initializeNewModel(input_dim, hidden_dim, layer_dim, output_dim):
 
 def trainModel(model, batch_size, seq_dim, epochs):
 
-    optimizer = torch.optim.Adam(model.parameters(), lr=1e-5)
+    optimizer = torch.optim.Adam(model.parameters(), lr=1e-3)
     # SGD(model.parameters(), lr=1e-4, momentum=0.9)
     # Adam(model.parameters(), lr=1e-3)
     # Adagrad(model.parameters(), lr=1e-3)
@@ -98,17 +100,13 @@ def trainModel(model, batch_size, seq_dim, epochs):
     iter = 0
 
     train_loss = []
-    test_rmse = []
-    test_rmse_sp = []
-    test_mae = []
-    test_mbe = []
 
     metric = pd.DataFrame()
     result = pd.DataFrame()
 
     for epoch in range(epochs):
         # one epoch = one time through dataset
-        for step in range(0, int(len(X_train)/batch_size)):
+        for step in range(0, int(len(X_train)/batch_size)): # 5904 solange sich batch_size nicht ändert
 
             train_load = X_train[step * batch_size:batch_size * (step+1)].view(-1, seq_dim, X_train.shape[2])
             y = y_train[step * batch_size:(step + 1) * batch_size]
@@ -128,21 +126,26 @@ def trainModel(model, batch_size, seq_dim, epochs):
             train_loss.append(RMSE.data)
 
             if iter % 100 == 99:
-                test_len = 455
+                batch_test = 200
+                test_len = int(len(X_test)/batch_test) # 455
 
                 rmse = []
+                rmse_sp = []
                 mae = []
                 mbe = []
+                p_sp = []
+                p_pred = []
 
-                # for step in range(0, int(len(y_test)/batch_size - 1)):
-                for step in range(test_len):
+                # for testrun in range(0, int(len(y_test)/batch_size - 1)):
+                for testrun in range(test_len): # davor war testrun = step
 
                     # for Model Input/Ouput
-                    test_load = X_test[step * batch_size:(step + 1) * batch_size, :].view(-1, seq_dim, X_test.shape[2])
-                    y = y_test[step * batch_size:(step + 1) * batch_size]
+                    test_load = X_test[testrun * batch_test:(testrun + 1) * batch_test, :].view(-1, seq_dim, X_test.shape[2])
+                    y = y_test[testrun * batch_test:(testrun + 1) * batch_test]
+                    y_sp = sp_test[testrun * batch_test:(testrun + 1) * batch_test]
 
                     # for Denormalization
-                    # test_ENI = ENI_test[step * batch_size:(step + 1) * batch_size]
+                    # test_ENI = ENI_test[testrun * batch_size:(testrun + 1) * batch_size]
 
                     y_pred = model(test_load)
 
@@ -152,25 +155,29 @@ def trainModel(model, batch_size, seq_dim, epochs):
 
                     # plot prediction
                     # P[horizon] -> 0 == +5min, 1 == +10min ...
-
-                    """if step == 455 and epoch == epochs - 1:
+                    # print("{}, {}".format(step, testrun)) # 5899, 454
+                    if testrun == 120:  # and step == 5899
                         P = y.transpose(0,1)
                         P_pred = y_pred.transpose(0, 1)
                         fig = plt.figure()
-                        fig = plt.plot(P[0])
-                        fig = plt.plot(P_pred[0].detach())
+                        fig = plt.plot(P[2])
+                        fig = plt.plot(P_pred[2].detach())
                         plt.savefig(PATH_fig)
+                        plt.close()
 
-                        y_pred_all = model(X_test)
-                        # result = pd.DataFrame(y_pred_all.detach())"""
+                    p_sp.append(y_sp)
+                    p_pred.append(y_pred.detach())
 
                     # compute Metrics
                     error = observ.data.numpy() - test_pred.data.numpy() # .squeeze()
+                    error_sp = observ.data.numpy() - y_sp.data.numpy()
 
+                    test_batch_rmse_sp = np.sqrt(np.nanmean(error_sp ** 2, axis=0))
                     test_batch_rmse = np.sqrt(np.nanmean(error ** 2, axis=0))
                     test_batch_mae = np.nanmean(np.abs(error), axis=0)
                     test_batch_mbe = np.nanmean(error, axis=0)
 
+                    rmse_sp.append(test_batch_rmse_sp)
                     rmse.append(test_batch_rmse)
                     mae.append(test_batch_mae)
                     mbe.append(test_batch_mbe)
@@ -189,6 +196,9 @@ def trainModel(model, batch_size, seq_dim, epochs):
     metric.insert(metric.shape[1], "MAE", value=mae)
     metric.insert(metric.shape[1], "MBE", value=mbe)
     metric.insert(metric.shape[1], "RMSE", value=rmse)
+    metric.insert(metric.shape[1], "RMSE_sp", value=rmse_sp)
+    result.insert(result.shape[1], "P_act", value=p_pred)
+    result.insert(result.shape[1], "P_sp", value=p_sp)
     metric.to_csv(PATH_save_met)
     result.to_csv(PATH_save_res)
     torch.save(model, PATH_save)
@@ -200,17 +210,17 @@ def trainModel(model, batch_size, seq_dim, epochs):
 # START
 # define which Model to load or name Model to be initialized (layer = ...)
 
-batch_size = 10 # 10
+batch_size = 15 # 20
 layer = 2
 hidden = 75
-epochs = 5
+epochs = 1
 
 # CHECK if train/test Set seasonal or chronological
-file = "LSTM_m2m_Layer_{}_Input_{}_hidden_{}_0_shift_denorm_minmax_El_Az".format(layer, X_train.shape[2], hidden)
+file = "LSTM_m2m_Layer_{}_Input_{}_hidden_{}_0_shift_denorm_minmax_El_Az_bt15".format(layer, X_train.shape[2], hidden)
 PATH_load = 'LSTM_Models/{}'.format(file)
 PATH_save = 'LSTM_Models/{}'.format(file)
 PATH_save_met = "D:/TU_Stuttgart/Studienarbeit/LSTM_results/{}.csv".format(file)
-PATH_save_res = "LSTM_Models/{}.csv".format(file)
+PATH_save_res = "D:/TU_Stuttgart/Studienarbeit/LSTM_results/result{}.csv".format(file)
 PATH_fig = 'D:/TU_Stuttgart/Studienarbeit/LSTM_results/figure'
 # "/zhome/academic/HLRS/hlrs/hpcsayli/run/LSTM_results/metricLSTM_layer_{}_Input_{}_hidden_{}.csv"
 
@@ -225,7 +235,7 @@ PATH_fig = 'D:/TU_Stuttgart/Studienarbeit/LSTM_results/figure'
 
 # True = load existing Model
 # False = initialize new Model !insert number to not overwrite existing Model!
-load_model = False
+load_model = True
 
 if load_model == False:
     # initialise Model and train IT
@@ -270,5 +280,4 @@ TO DO:
 dropout layer
 Martins comments
 change Variables
-
-Die Anwendung von 2 layer ist durch die Funktion des ersten layers als Filter für den zweiten begründet"""
+"""

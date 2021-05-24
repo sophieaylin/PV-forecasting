@@ -20,7 +20,7 @@ def IndicatorNaN(train_X, test_X, train_Y):
 
 def split_sequences(sequences, n_steps_in, n_steps_out):
 
-    X, y , ENI, = list(), list(), list()
+    X, y , y_sp, ENI, = list(), list(), list(), list()
 
     for i in range(len(sequences)):
         # find the end of this pattern
@@ -30,14 +30,15 @@ def split_sequences(sequences, n_steps_in, n_steps_out):
         if out_end_ix > len(sequences):
             break
         # gather input and output parts of the pattern
-        seq_x, seq_y, seq_ENI, = sequences[i:end_ix, 0:sequences.shape[1]-2], sequences[end_ix - 1:out_end_ix, -2],\
-                                 sequences[end_ix - 1:out_end_ix, -1]
+        seq_x, seq_y, seq_ysp, seq_ENI, = sequences[i:end_ix, 0:sequences.shape[1]-3], sequences[end_ix - 1:out_end_ix, -3],\
+                                 sequences[end_ix - 1:end_ix, -2], sequences[end_ix - 1:out_end_ix, -1]
         X.append(seq_x)
         y.append(seq_y)
+        y_sp.append(seq_ysp)
         ENI.append(seq_ENI)
 
     print("done")
 
-    return np.array(X), np.array(y), np.array(ENI)
+    return np.array(X), np.array(y), np.array(y_sp), np.array(ENI)
 
 
