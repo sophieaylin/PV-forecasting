@@ -15,7 +15,8 @@ def computeMetrics(path):
     rmse_sp = file["RMSE_sp"]
 
     file_res = pd.read_csv(path_res, sep=",")
-    p = file_res["P_act"]
+    p = file_res["P_real"]
+    pred = file_res["P_pred"]
     sp = file_res["P_sp"]
 
     MAE = []
@@ -24,6 +25,7 @@ def computeMetrics(path):
     RMSE_sp = []
     skill = []
     P_act = []
+    P_pred = []
     P_sp = []
 
     for line in range(len(file)):
@@ -41,6 +43,20 @@ def computeMetrics(path):
         RMSE.append(row_rmse)
         RMSE_sp.append(row_rmse_sp)
 
+
+    """for t in range(len(file_res)):
+        row_real = p[t].strip("[]").split()
+        row_pred = pred[t].strip("[]").split()
+        row_sp = sp[t].strip("[]").split()
+        for m, (item_p, item_pred, item_sp) in enumerate(zip(row_real, row_pred, row_sp)):
+            row_real[m+1] = float(item_p)
+            row_pred[m+1] = float(item_pred)
+            row_sp[m+1] = float(item_sp)
+        P_act.append(row_real)
+        P_pred.append(row_pred)
+        P_sp.append(row_sp)"""
+
+
     mae_mean = np.nanmean(MAE, axis=0)
     mbe_mean = np.nanmean(MBE, axis=0)
     rmse_mean = np.nanmean(RMSE, axis=0)
@@ -52,24 +68,46 @@ def computeMetrics(path):
 
     for t in range(len(mae_mean)-1):
         horizon = (t+1) * 5
-        print("forecast {}min: MAE: {:.2f} std: {:.1f}, MBE: {:.2f} std: {:.1f}, RMSE: {:.2f} std: {:.1f}, skill: {:.2f} std: {:.1f}".format
+        print("forecast {}min: MAE: {:.2f} std: {:.1f}, MBE: {:.2f} std: {:.1f}, RMSE: {:.2f} std: {:.1f},"
+              " skill: {:.2f} std: {:.1f}, RMSE_sp: {:.2f} std: {:.1f}".format
               (horizon, mae_mean[t], np.nanstd(np.transpose(MAE)[t]), mbe_mean[t], np.nanstd(np.transpose(MBE)[t]),
-               rmse_mean[t], np.nanstd(np.transpose(RMSE)[t]), skill[t] * 100, np.nanstd(np.transpose(skill)[t])))
+               rmse_mean[t], np.nanstd(np.transpose(RMSE)[t]), skill[t] * 100, np.nanstd(np.transpose(skill)[t]),
+              rmse_sp_mean[t], np.nanstd(np.transpose(RMSE_sp)[t])))
 
     return None
 
-# metricLSTM_m2m_layer_2_Input_5_hidden_100_highneg_cr, 100 epochen
+# metricLSTM_m2m_layer_2_Input_5_hidden_100_highneg_cr
 # metricLSTM_m2m_layer_2_Input_5_hidden_100_0_cr
 # metricLSTM_m2m_layer_2_Input_5_hidden_100_highneg_seas
-# metricLSTM_m2m_layer_2_Input_5_hidden_100_0_seas, 100 epochen
+# metricLSTM_m2m_layer_2_Input_5_hidden_100_0_seas
 # metricLSTM_m2m_layer_2_Input_3_hidden_100_0_seas_gtiBNIRHkd_sc
 # metricLSTM_m2m_layer_2_Input_5_hidden_100_0_seas_minmax
 # metricLSTM_m2m_layer_2_Input_8_hidden_100_0_seas_shift_Ind
 # metricLSTM_m2m_layer_2_Input_8_hidden_100_0_seas_Ind
-# LSTM_m2m_Layer_2_Input_5_hidden_150_0_shift_denorm_minmax_El_Az
-file = "LSTM_m2m_Layer_2_Input_5_hidden_75_0_shift_denorm_minmax_El_Az_bt15.csv"
+
+# GHI, BNI, Ta, El, Az
+# LSTM_m2m_Layer_2_Input_5_hidden_150_0_shift_denorm_minmax_El_Az.csv not usable
+# LSTM_m2m_Layer_2_Input_5_hidden_75_0_shift_denorm_minmax_El_Az_bt15.csv verwendbar!
+
+# GHI, BNI, Ta, TL
+# LSTM_m2m_Layer_2_Input_4_hidden_150_0_seas_shift_night_denorm_minmax.csv
+
+# LSTM_m2m_Layer_2_Input_5_hidden_50_0_denorm_minmax
+# LSTM_m2m_Layer_2_Input_5_hidden_100_0_seas_minmax_bt10.csv
+# LSTM_m2m_Layer_2_Input_5_hidden_100_0_seas_minmax_bt30_GHIBNITaTLAMa #bt10 MSE
+# LSTM_m2m_Layer_2_Input_5_hidden_100_0_seas_scaler_bt10_ktBNIktTaTLvw_MSE.csv
+
+file = "LSTM_m2m_Layer_2_Input_5_hidden_75_0_shift_denorm_minmax_El_Az_bt15.csv" #
 path = "D:/TU_Stuttgart/Studienarbeit/LSTM_results/{}".format(file)
 path_res = "D:/TU_Stuttgart/Studienarbeit/LSTM_results/result{}".format(file)
+
+"""file = "LSTM_Layer_2_Input_5_hidden_75_0_Scaler_GHIBNITaTLvw.csv" #bt10 L1
+path = "C:/Users/sophi/OneDrive/Dokumente/TU_Stuttgart/Studienarbeit/Git/PV-forecasting_1year/Vulcan/{}".format(file)
+path_res = "C:/Users/sophi/OneDrive/Dokumente/TU_Stuttgart/Studienarbeit/Git/PV-forecasting_1year/Vulcan/result{}".format(file)"""
+
+# LSTM_Layer_2_Input_5_hidden_75_0_Scaler_GHIBNITaTLvw.csv L1, bt=10, dropout=false
+# LSTM_m2m_Layer_2_Input_5_hidden_75_0_denorm_minmax_L1.csv GHI, BNI, Ta, El, Az
+# LSTM_m2m_Layer_2_Input_5_hidden_50_0_denorm_minmax_month  GHI, BNI, Ta, El, Az loss=L1
 
 computeMetrics(path)
 
@@ -87,5 +125,3 @@ for step in range(0, len(tar_cols)):
     Pdc_act = test_y["{}".format(min)] * tar.CAPACITY
     error_sp = np.sqrt(np.nanmean((Pdc_act - test_y["Pdc_sp"]).values ** 2))
     rmse_sp.append(error_sp)"""
-
-
