@@ -4,6 +4,7 @@ import os
 import glob
 import numpy as np
 import pandas as pd
+import matplotlib as mpl
 import matplotlib.pyplot as plt
 
 def summary_stats(target, filenames, baseline="sp"):
@@ -51,13 +52,10 @@ def summary_stats(target, filenames, baseline="sp"):
                 # where RMSE_f and RMSE_p are the RMSE of the forecast model
                 # and reference baseline model, respectively. (smart persistance model)
                 rmse_p = np.sqrt(
-                    np.mean((group["Pdc_{}_actual".format(target)] - group["Pdc_{}_{}".format(target, baseline)]).values ** 2)
+                    np.nanmean((group["Pdc_{}_actual".format(target)] - group["Pdc_{}_{}".format(target, baseline)]).values ** 2)
                 )
 
                 skill = 1.0 - rmse / rmse_p
-
-                """if np.isinf(skill):
-                    skill = float("NaN")"""
 
                 results.append(
                     {
@@ -93,19 +91,6 @@ def summarize(target):
     df.to_hdf("results_{}_intra-hour.h5".format(target), "df", mode="w")
     print("Intra-hour ({}): {}".format(target, df.shape))
 
-"""  # intra-day: 30min to 3h ahead
-    df = summary_stats(
-        target,
-        glob.glob(
-            os.path.join(
-                "forecasts", "forecasts_intra-day*{}.h5".format(target)
-            )
-        ),
-        baseline="sp",
-    )
-    df.to_hdf("results_{}_intra-day.h5".format(target), "df", mode="w")
-    print("Intra-day ({}): {}".format(target, df.shape)"""
-
 
 def summary_table(target):
     """Summary table for paper."""
@@ -134,14 +119,35 @@ def summary_table(target):
 
     sumdata.to_csv("summary_mean_table_{}.csv".format(target), index=False, sep=";", decimal=",")
 
+
 # computes and prints error metrics
 target = "BNI"
 summarize(target)
 summary_table(target)
-
+#summarize_sp(target)
 
 
 target = "GHI"
 summarize(target)
 summary_table(target)
+
+"""# Plot begin
+# forecast30min_60min
+# forecast3h_60min
+Pact = np.array(group.Pdc_BNI_actual) 
+Ppred = np.array(group.Pdc_BNI_ridge)
+Psp = np.array(group.Pdc_BNI_sp)
+plt.figure(dpi=200)
+plt.plot(Pact[2120:2720], label="actual")
+plt.plot(Psp[2120:2720], label="naiv Pers.")
+plt.plot(Ppred[2120:2720],  label="predicted")
+line = plt.gca().lines
+plt.setp(line, linewidth=0.5)
+plt.xticks(fontsize=6)
+plt.yticks(fontsize=6)
+plt.xlabel("Time Step/5min", size=10)
+plt.ylabel("Power/Watt", size=10)
+plt.legend(loc='upper right')
+
+# Plot end"""
 
