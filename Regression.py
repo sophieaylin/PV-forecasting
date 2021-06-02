@@ -6,14 +6,27 @@ import tables
 import DataManagement
 from sklearn import linear_model, ensemble, neural_network
 from sklearn.preprocessing import StandardScaler
-from DataManagement import DataManager #get_features, get_target_Pdc
+from DataManagement import DataManager
 
-# BEFORE RUN: check if "window_tar" in DataManagement.py fits to "horizon" of Regression.py
+# BEFORE RUN: check if "window_tar" fits to "horizon"
 
 feat = DataManager()
 dropnight = "true"
-features = feat.get_features(window_ft=6, window_tar=6, dropnight=dropnight)
-tar = feat.get_target_Pdc(window_tar=6, dropnight=dropnight)
+window_tar = 36
+features = feat.get_features(window_ft=12, window_tar=window_tar, dropnight=dropnight)
+tar = feat.get_target_Pdc(window_tar=window_tar, dropnight=dropnight)
+
+target = ["GHI", "BNI"]
+horizon = ["5min", "10min", "15min", "20min", "25min", "30min", "35min", "40min", "45min", "50min", "55min", "60min",
+"65min", "70min", "75min", "80min", "85min", "90min", "95min", "100min", "105min", "110min", "115min",
+"120min", "125min", "130min", "135min", "140min", "145min", "150min", "155min", "160min", "165min",
+"170min", "175min", "180min"]
+window_tar = len(horizon)
+
+""", "35min", "40min", "45min", "50min", "55min", "60min",
+"65min", "70min", "75min", "80min", "85min", "90min", "95min", "100min", "105min", "110min", "115min",
+"120min", "125min", "130min", "135min", "140min", "145min", "150min", "155min", "160min", "165min",
+"170min", "175min", "180min"]"""
 
 def run_forecast(target,horizon):
 
@@ -29,21 +42,11 @@ def run_forecast(target,horizon):
     test = test_x.merge(test_y, on="t")
 
     # delete night time values
-    train = train.drop(train.index[train["El_x"] < 15])
-    test = test.drop(test.index[test["El_x"] < 15])
+    train = train.drop(train.index[train["El_x"] < 10])
+    test = test.drop(test.index[test["El_x"] < 10])
 
     train = train.dropna()
     test = test.dropna()
-
-    back = window_tar + 1
-    Pdc_35_train = train.Pdc_33.shift(periods=back)
-    Pdc_35_train = Pdc_35_train[2*back:]
-    Pdc_35_test = test.Pdc_33.shift(periods=back)
-    Pdc_35_test = Pdc_35_test[2*back:]
-    train = train[0:(len(train)-2*back)]
-    test = test[0:(len(test)-2*back)]
-    train.insert(len(train.columns), column="Pdc_35", value=Pdc_35_train.values)
-    test.insert(len(test.columns), column="Pdc_35", value=Pdc_35_test.values)
 
     """feature_cols = features.filter(regex=target).columns.tolist()"""
 
@@ -51,8 +54,15 @@ def run_forecast(target,horizon):
     feature_cols_B = features.filter(regex="BNI").columns.tolist()
     feature_cols = feature_cols_G + feature_cols_B
 
-    train_X = train[feature_cols + ["Pdc_33"]].values #
-    test_X = test[feature_cols + ["Pdc_33"]].values #
+    train_X = train[feature_cols + ["BNI_kt_one"] + ["BNI_kt_two"] + ["BNI_kt_three"] + ["gti_kt_one"]
+                    + ["gti_kt_two"] + ["gti_kt_three"] + ["wdir"] + ["tpw"] + ["Az"] + ["TL"] + ["kd"] + ["Ta"] +
+                    ["vw"] + ["RH"] + ["El_x"] + ["Patm"] + ["Pdc_33"]].values
+    test_X = test[feature_cols + ["BNI_kt_one"] + ["BNI_kt_two"] + ["BNI_kt_three"] + ["gti_kt_one"]
+                  + ["gti_kt_two"] + ["gti_kt_three"] + ["wdir"] + ["tpw"] + ["Az"] + ["TL"] + ["kd"] + ["Ta"] +
+                  ["vw"] + ["RH"] + ["El_x"] + ["Patm"] + ["Pdc_33"]].values
+
+    #+ ["Pdc_33"] + ["BNI_kt_one"] + ["BNI_kt_two"] + ["BNI_kt_three"] + ["gti_kt_one"] + ["gti_kt_two"] + ["gti_kt_three"]
+    # + ["wdir"] + ["tpw"] + ["Az"] + ["TL"] + ["kd"] + ["Ta"] + ["vw"] + ["RH"] + ["CS"] + ["Patm"]
 
     train_Y = train['Pdc_{}'.format(horizon)].values
     test_Y = test['Pdc_{}'.format(horizon)].values
@@ -121,15 +131,6 @@ def run_forecast(target,horizon):
 # horizon -> for postprocess
 for filename in os.listdir("forecasts"):
     os.remove(os.path.join("forecasts", filename))
-
-target = ["GHI", "BNI"]
-horizon = ["5min", "10min", "15min", "20min", "25min", "30min"]
-window_tar = len(horizon)
-
-""", "35min", "40min", "45min", "50min", "55min", "60min",
-"65min", "70min", "75min", "80min", "85min", "90min", "95min", "100min", "105min", "110min", "115min",
-"120min", "125min", "130min", "135min", "140min", "145min", "150min", "155min", "160min", "165min",
-"170min", "175min", "180min"]"""
 
 for t in target:
     for h in horizon:
