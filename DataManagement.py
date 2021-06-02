@@ -15,9 +15,21 @@ class DataManager:
 
         gti_kt = data["gti30t187a"].div(data["ENI"])
         BNI_kt = data["BNI"].div(data["ENI"])
-
         data.insert(data.shape[1], "gti_kt", value=gti_kt)
         data.insert(data.shape[1], "BNI_kt", value=BNI_kt)
+
+        BNI_kt_oneday = data["BNI_kt"].shift(periods=288)
+        BNI_kt_twoday = data["BNI_kt"].shift(periods=288*2)
+        BNI_kt_threeday = data["BNI_kt"].shift(periods=288*3)
+        BNI_kt_oneday = data["gti_kt"].shift(periods=288)
+        BNI_kt_twoday = data["gti_kt"].shift(periods=288*2)
+        BNI_kt_threeday = data["gti_kt"].shift(periods=288*3)
+        data.insert(data.shape[1], "BNI_kt_one", value=BNI_kt_oneday)
+        data.insert(data.shape[1], "BNI_kt_two", value=BNI_kt_twoday)
+        data.insert(data.shape[1], "BNI_kt_three", value=BNI_kt_threeday)
+        data.insert(data.shape[1], "gti_kt_one", value=BNI_kt_oneday)
+        data.insert(data.shape[1], "gti_kt_two", value=BNI_kt_twoday)
+        data.insert(data.shape[1], "gti_kt_three", value=BNI_kt_threeday)
 
         self.data = data
 
@@ -35,6 +47,26 @@ class DataManager:
             train = pd.concat([train, this_month.iloc[in_training_set, :]], axis=0)
             test = pd.concat([test, this_month.iloc[~in_training_set, :]], axis=0)
 
+        """first = ["Sep", "Dec", "Mar", "Jun"]
+        second = ["Oct", "Jan", "Apr", "Jul"]
+        third = ["Nov", "Feb", "May", "Aug"]  # 2019 und 2020
+        autumn = pd.DataFrame()
+        winter = pd.DataFrame()
+        spring = pd.DataFrame()
+        summer = pd.DataFrame()
+
+        for t in [first, second, third]:
+            aut = self.data[self.data.t.str.contains(t[0])]
+            win = self.data[self.data.t.str.contains(t[1])]
+            spr = self.data[self.data.t.str.contains(t[2])]
+            sum = self.data[self.data.t.str.contains(t[3])]
+            autumn = pd.concat([autumn, aut], axis=0)
+            winter = pd.concat([winter, win], axis=0)
+            spring = pd.concat([spring, spr], axis=0)
+            summer = pd.concat([summer, sum], axis=0)"""
+
+        """train, test = self.data[0:int(len(self.data) * 0.8)], self.data[int(len(self.data) * 0.8):len(self.data)]"""
+
         self.train = train
         self.test = test
 
@@ -50,8 +82,8 @@ class DataManager:
 
         B_BNI_kt_1 = self.train["BNI_kt"]
         B_BNI_kt = self.train["BNI_kt"]
-        B_GHI_kt_1 = self.train["kt"] #  gti_kt_train  GHI_KT_train
-        B_GHI_kt = self.train["kt"]  #  gti_kt_train  GHI_KT_train
+        B_GHI_kt_1 = self.train["gti_kt"]
+        B_GHI_kt = self.train["gti_kt"]
 
         featuresB_GHI = pd.DataFrame()
         featuresB_BNI = pd.DataFrame()
@@ -89,23 +121,33 @@ class DataManager:
             featuresV_BNI.insert(col, column='V_BNI_kt_%i' % col, value=V_BNI_kt)
 
         # Include Pdc to Trainingsset, which is not within the Horizon
-        back = window_tar + 1
+        back = window_ft + 1
         Pdc_35_train = self.train["Pdc_33"].shift(periods=back)
-        Pdc_35_train = Pdc_35_train[2*back:]
+        Pdc_35_train = Pdc_35_train.div(self.CAPACITY)
 
         features_train = pd.concat([self.train["t"], featuresB_GHI, featuresB_BNI, featuresV_GHI, featuresV_BNI,
-                              featuresL_GHI, featuresL_BNI, self.train["El"], self.train["Pdc_33"]], axis=1)
+                              featuresL_GHI, featuresL_BNI, self.train["BNI_kt_one"], self.train["BNI_kt_two"],
+                              self.train["BNI_kt_three"], self.train["gti_kt_one"], self.train["gti_kt_two"],
+                              self.train["gti_kt_three"], self.train["Ta"], self.train["vw"], self.train["RH"], self.train["wdir"], self.train["tpw"],
+                              self.train["Az"], self.train["TL"], Pdc_35_train, self.train["AMa"], self.train["kd"],
+                              self.train["El"], self.train["CS"], self.train["Patm"]], axis=1)
 
-        ft_train = features_train[0:len(features_train) - window_tar] # 2*back
-        # ft_train.insert(features_train.shape[1], "Pdc_33", value=Pdc_35_train)
+        # , self.train["BNI_kt_one"], self.train["BNI_kt_two"],
+        #                               self.train["BNI_kt_three"], self.train["Ta"], self.train["CS"], self.train["Patm"]
+        #                               self.train["vw"], self.train["RH"], self.train["wdir"], self.train["tpw"],
+        #                               self.train["Az"], , self.train["TL"], Pdc_35_train, self.train["AMa"], self.train["kd"],
+        #, self.train["gti_kt_one"], self.train["gti_kt_two"],
+        #                               self.train["gti_kt_three"],
+
+        ft_train = features_train[0:len(features_train) - window_tar]
         ft_train.insert(ft_train.shape[1], "dataset", "Train")
 
         # Test features
 
         B_BNI_kt_1 = self.test["BNI_kt"]
         B_BNI_kt = self.test["BNI_kt"]
-        B_GHI_kt_1 = self.test["kt"] #  gti_kt_train  GHI_KT_train
-        B_GHI_kt = self.test["kt"]
+        B_GHI_kt_1 = self.test["gti_kt"]
+        B_GHI_kt = self.test["gti_kt"]
 
         featuresB_GHI = pd.DataFrame()
         featuresB_BNI = pd.DataFrame()
@@ -146,13 +188,23 @@ class DataManager:
 
         # Include Pdc to Testset, which is not within the Horizon
         Pdc_35_test = self.test["Pdc_33"].shift(periods=back)
-        Pdc_35_test = Pdc_35_test[2*back:]
+        Pdc_35_test = Pdc_35_test.div(self.CAPACITY)
 
         features_test = pd.concat([self.test["t"], featuresB_GHI, featuresB_BNI, featuresV_GHI, featuresV_BNI,
-                              featuresL_GHI, featuresL_BNI, self.test["El"], self.test["Pdc_33"]], axis=1)
+                              featuresL_GHI, featuresL_BNI, self.test["BNI_kt_one"], self.test["BNI_kt_two"],
+                              self.test["BNI_kt_three"], self.test["gti_kt_one"], self.test["gti_kt_two"],
+                              self.test["gti_kt_three"], self.test["Ta"], self.test["vw"], self.test["RH"], self.test["wdir"], self.test["tpw"],
+                              self.test["Az"], Pdc_35_test, self.test["TL"], self.test["AMa"], self.test["kd"],
+                              self.test["El"], self.test["CS"], self.test["Patm"]], axis=1)
 
-        ft_test = features_test[0:len(features_test) - window_tar] # 2*back
-        # ft_test.insert(features_test.shape[1], "Pdc_33", value=Pdc_35_test)
+        # , self.test["BNI_kt_one"], self.test["BNI_kt_two"],
+        #                               self.test["BNI_kt_three"], self.test["Ta"], self.test["CS"], self.test["Patm"]
+        #                               self.test["vw"], self.test["RH"], self.test["wdir"], self.test["tpw"],
+        #                               self.test["Az"], Pdc_35_test, self.test["TL"],self.test["AMa"], self.test["kd"]
+        # , self.test["gti_kt_one"], self.test["gti_kt_two"],
+        #                                       self.test["gti_kt_three"],
+
+        ft_test = features_test[0:len(features_test) - window_tar]
         ft_test.insert(ft_test.shape[1], "dataset", "Test")
 
         """if dropnight == "true":
@@ -217,7 +269,7 @@ class DataManager:
 
         return X_train, X_test # features.copy(deep_copy)
 
-    def get_target_LSTM(self, window_LSTM, deep_copy = True):
+    def get_target_LSTM(self, window_LSTM):
         # for Output -> Y (Power)
         # Train target
         # for LSTM Input for time t: x(t), y(t) in one row
@@ -229,8 +281,8 @@ class DataManager:
         Pdc_shift.insert(0, column='Pdc_sp', value=Pdc_sp)
 
         for col in range(1, window_LSTM + 1):
-            Pdc_norm = Pdc_norm.shift(periods=-1)
             Pdc_shift.insert(col, column='Pdc_{}min'.format(self.delta * (col)), value=Pdc_norm)
+            Pdc_norm = Pdc_norm.shift(periods=-1)
 
         target_train = pd.concat([self.train["t"], Pdc_shift, self.train["ENI"], self.train["El"], self.train["Pdc_33"]], axis=1)
         Y_train = target_train[0:len(target_train) - window_LSTM]
@@ -243,13 +295,13 @@ class DataManager:
         Pdc_shift.insert(0, column='Pdc_sp', value=Pdc_sp)
 
         for col in range(1, window_LSTM + 1):
-            Pdc_norm = Pdc_norm.shift(periods=-1)
             Pdc_shift.insert(col, column='Pdc_{}min'.format(self.delta * (col)), value=Pdc_norm)
+            Pdc_norm = Pdc_norm.shift(periods=-1)
 
         target_test = pd.concat([self.test["t"], Pdc_shift, self.test["ENI"], self.test["El"], self.test["Pdc_33"]], axis=1)
         Y_test = target_test[0:len(target_test) - window_LSTM]
 
-        return Y_train.copy(deep_copy), Y_test.copy(deep_copy)
+        return Y_train, Y_test
 
     def get_target_Irr(self, window_tar, deep_copy = True):
         # for Output -> Y (Irradiance, kt)
